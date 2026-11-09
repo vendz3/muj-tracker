@@ -1,8 +1,8 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./chartData.js";
+import { DAYS, NAP_SHORT, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { card } from "./ui.js";
 
@@ -460,7 +460,46 @@ function AvgNote({ series: s }) {
 }
 
 // Weekly goal meters + one chart per scale group.
-function CardBody({ chart: { template, groups, summary, weekGoals }, week = false }) {
+// Nap length (x) × grogginess (y): bigger dot = more naps with the same pair. Answers "from what length do I wake groggy?".
+function NapScatter({ scatter }) {
+  const c = useColors();
+  const tick = { fill: c.tick, fontSize: 11 };
+  const { points, total, short, long } = scatter;
+  if (total < 3) return <p className="text-xs text-neutral-500">Graf se ukáže po 3 napech s vyplněnou rozespalostí.</p>;
+  const compare = short && long && `Napy do ${NAP_SHORT} min: Ø rozespalost ${num(short.avg)} (${short.n}×) · delší: Ø ${num(long.avg)} (${long.n}×)`;
+  const maxMin = Math.max(...points.map((p) => p.minutes));
+  return (
+    <div role="img" aria-label={`Rozespalost podle délky napu, ${total} napů. ${compare ?? ""}`}>
+      <div style={{ height: 170 }} className="w-full">
+        <ResponsiveContainer>
+          <ScatterChart margin={{ top: 8, right: 14, bottom: 0, left: -24 }}>
+            <CartesianGrid stroke={c.grid} />
+            <XAxis type="number" dataKey="minutes" domain={[0, niceMax(maxMin)]} tick={tick} stroke={c.axis} unit=" min" tickCount={5} />
+            <YAxis type="number" dataKey="grogginess" domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tick={tick} stroke={c.axis} width={52} />
+            <ZAxis type="number" dataKey="n" range={[50, 260]} />
+            {/* The usual no-inertia length: naps left of it should sit low. */}
+            <ReferenceLine x={NAP_SHORT} stroke={c.goalInk} strokeDasharray="4 3" strokeWidth={1} />
+            <Tooltip
+              cursor={false}
+              content={({ active, payload }) =>
+                active && payload?.length ? (
+                  <div className="rounded-xl bg-neutral-800/95 px-3 py-2 text-sm text-neutral-100 shadow-md ring-1 ring-neutral-50/10">
+                    {payload[0].payload.minutes} min · rozespalost <b>{payload[0].payload.grogginess}</b>
+                    {payload[0].payload.n > 1 && <span className="text-neutral-400"> · {payload[0].payload.n}×</span>}
+                  </div>
+                ) : null
+              }
+            />
+            <Scatter data={points} fill={paint(c, "a2")} fillOpacity={0.85} isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-1 text-xs text-neutral-400">{compare ?? `Srovnání krátkých (do ${NAP_SHORT} min) a delších napů se ukáže, až budou aspoň 2 od každého.`}</p>
+    </div>
+  );
+}
+
+function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, week = false }) {
   return (
     <>
     {weekGoals.length > 0 && (
@@ -510,6 +549,14 @@ function CardBody({ chart: { template, groups, summary, weekGoals }, week = fals
         </div>
       ))}
     </div>
+    {scatter && (
+      <div className="mt-3">
+        <p className="mb-1 text-xs text-neutral-500">
+          Rozespalost podle délky napu (1–5, méně = lépe) · <span className="inline-block w-3.5 border-t border-dashed align-middle" style={{ borderColor: GOAL_INK }} aria-hidden="true" /> {NAP_SHORT} min
+        </p>
+        <NapScatter scatter={scatter} />
+      </div>
+    )}
     </>
   );
 }

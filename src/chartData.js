@@ -48,7 +48,8 @@ export const METRICS = {
     { ...score("energy", "Energie", A2), better: "high" },
     { ...score("frustration", "Frustrace", A3), better: "low" },
   ],
-  nap: [{ ...value("minutes", "Nap", "min", A1), zeroFill: true }, { ...score("grogginess", "Rozespalost", A2), better: "low" }],
+  // Grogginess exists only on nap days: drawn against nap length (napScatter), not over time.
+  nap: [{ ...value("minutes", "Nap", "min", A1), zeroFill: true }],
   social: [score("battery", "Sociální baterie", A1)],
   water: [value("liters", "Vypito", "l", A1)],
   // avgLine: dotted average line in the chart; zeroFill: a recorded day without the metric counts as 0 (not done),
@@ -124,6 +125,25 @@ export function weekDays(records, offset = 0, today = new Date()) {
     const date = iso(new Date(today.getFullYear(), today.getMonth(), end - 6 + i));
     return { date, record: byDate[date] ?? null };
   });
+}
+
+// Nap length × grogginess: does a longer nap leave you groggy? Same (minutes, grogginess) pairs merge into one
+// point with n; short (<= NAP_SHORT min, the usual no-inertia length) vs longer naps compared once each has >= 2.
+export const NAP_SHORT = 25;
+export function napScatter(data) {
+  const naps = data.filter((d) => d?.minutes > 0 && d.grogginess != null);
+  const byPair = {};
+  for (const { minutes, grogginess } of naps) {
+    const k = `${minutes}/${grogginess}`;
+    byPair[k] = { minutes, grogginess, n: (byPair[k]?.n ?? 0) + 1 };
+  }
+  const group = (xs) => (xs.length >= 2 ? { avg: sum(xs.map((d) => d.grogginess)) / xs.length, n: xs.length } : null);
+  return {
+    points: Object.values(byPair),
+    total: naps.length,
+    short: group(naps.filter((d) => d.minutes <= NAP_SHORT)),
+    long: group(naps.filter((d) => d.minutes > NAP_SHORT)),
+  };
 }
 
 // X-axis ticks every 7 days ending with the last row, so every chart in a card shows the same dates.
@@ -302,7 +322,7 @@ export function templateCharts(days, templates) {
     for (const g of groups) g.goalInfo = g.series.some((s) => s.stack) ? goals._minutes : g.series.length === 1 ? g.series[0].goalInfo : undefined;
     const pick = SUMMARY[t.type]?.find(([key]) => rows.some((r) => r[key] != null));
     const summary = pick && weekSummary(rows, pick[0], pick[1]);
-    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
+    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), ...(t.type === "nap" && { scatter: napScatter(data) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
   }
   return cards;
 }

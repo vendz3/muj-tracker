@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
+import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -245,7 +245,8 @@ assert.deepEqual(fa.presence.rows.map((r) => [r.name, r.cells]), [["půst", [tru
 assert.equal(fa.presence.filledWeek, 3);
 assert.deepEqual(fa.groups, []);
 // Nap: groups follow the metric order -> minutes first.
-assert.deepEqual(np.groups.map((g) => g.scale), ["value", "score"]);
+assert.deepEqual(np.groups.map((g) => g.scale), ["value"]); // grogginess moved to the scatter
+assert.deepEqual(np.scatter.points, [{ minutes: 20, grogginess: 2, n: 1 }]);
 // Weekly x ticks end on the last row, 7 days apart.
 const wt = weeklyTicks([...Array(30)].map((_, i) => ({ date: `d${i}` })));
 assert.deepEqual(wt, ["d1", "d8", "d15", "d22", "d29"]);
@@ -254,3 +255,9 @@ console.log("OK fasting grid, nap order, weekly ticks");
 const faNo = templateCharts(lastDays([rec("2026-11-06", [[7, { fasted: false }]])], today), [FA])[0];
 assert.deepEqual([faNo.presence.rows, faNo.presence.filledWeek, faNo.presence.top], [[], 1, null]);
 console.log("OK fasting without fasts");
+
+// Nap scatter: duplicates merge, days without a nap or grogginess are skipped, short vs long need >= 2 each.
+const ns = napScatter([{ minutes: 20, grogginess: 3 }, { minutes: 20, grogginess: 3 }, { minutes: 15, grogginess: 1 }, { minutes: 40, grogginess: 5 }, { minutes: 30 }, {}, null]);
+assert.deepEqual(ns.points, [{ minutes: 20, grogginess: 3, n: 2 }, { minutes: 15, grogginess: 1, n: 1 }, { minutes: 40, grogginess: 5, n: 1 }]);
+assert.deepEqual([ns.total, ns.short.n, Math.round(ns.short.avg * 100) / 100, ns.long], [4, 3, 2.33, null]);
+console.log("OK nap scatter");
