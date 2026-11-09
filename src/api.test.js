@@ -26,4 +26,7 @@ await importData({ tracker_templates: "x" }).catch(() => (threw = true));
 assert(threw && (await api("/records")).length === 1, "bad import rejected, data kept");
 await importData(backup);
 assert(JSON.stringify(await exportData()) === JSON.stringify(backup), "roundtrip");
+const { demoData } = await import("./demo.js");
+await importData(demoData());
+assert((await api("/records")).length === 30 && (await api("/streak")).streak === 30, "demo data imports, streak 30");
 console.log("api self-check OK");

@@ -1,4 +1,4 @@
-import { Download, Upload } from "lucide-react";
+import { Download, Sparkles, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { exportData, importData } from "./api.js";
 import { card, primary, secondary } from "./ui.js";
@@ -37,6 +37,17 @@ export default function Backup() {
     reader.readAsText(f);
   }
 
+  async function onDemo() {
+    if (!confirm("Demo data přepíšou všechna současná data v tomto prohlížeči. Pokračovat?")) return;
+    try {
+      const { demoData } = await import("./demo.js"); // lazy: not in the main bundle
+      await importData(demoData());
+      location.reload();
+    } catch (err) {
+      setError(`Načtení demo dat selhalo: ${err.message}`);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <section className={`${card} space-y-3`}>
@@ -48,6 +59,9 @@ export default function Backup() {
         </button>
         <button type="button" onClick={() => file.current.click()} className={`${secondary} flex w-full items-center justify-center gap-2`}>
           <Upload size={20} aria-hidden="true" /> Importovat z JSON
+        </button>
+        <button type="button" onClick={onDemo} className={`${secondary} flex w-full items-center justify-center gap-2`}>
+          <Sparkles size={20} aria-hidden="true" /> Načíst demo data
         </button>
         <input ref={file} type="file" accept="application/json,.json" onChange={onImport} className="hidden" aria-hidden="true" tabIndex={-1} />
       </section>
