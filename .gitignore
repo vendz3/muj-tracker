@@ -1,4 +1,2 @@
 node_modules
 dist
-# stray file from an earlier shell mishap, not part of the app
-ater ticks*
