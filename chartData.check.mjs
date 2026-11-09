@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
+import { METRICS, activities, shiftClock, fmtHM, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -20,8 +20,16 @@ const records = [
 ];
 
 const days = lastDays(records, new Date(2026, 10, 7, 12));
+assert.equal(shiftClock("23:50", 15), "00:05");
+assert.equal(shiftClock("00:05", -15), "23:50");
+assert.equal(shiftClock("07:00", 15), "07:15");
+assert.equal(fmtHM(8.733), "8 h 44 min");
+assert.equal(fmtHM(8), "8 h");
+assert.equal(fmtHM(7.999), "8 h");
 assert.deepEqual(days.map((d) => d.date), ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"]);
 assert.equal(days[1].record, null);
+assert.deepEqual(lastDays(records, new Date(2026, 10, 7, 12), 2).map((d) => d.date), ["2026-11-06", "2026-11-07"]); // 14-day range etc.
+assert.equal(lastDays(records, new Date(2026, 10, 20, 12), 14).length, 14); // window caps at n days
 
 const cards = Object.fromEntries(templateCharts(days, T).map((c) => [c.template.type, c]));
 assert.deepEqual(Object.keys(cards), ["sleep", "food", "sport"]);
@@ -38,7 +46,7 @@ assert.deepEqual(sport.rows.map((r) => r.s1), [0, null, null, 30]);
 assert.equal(sport.rows[3].s1i, 2);
 assert.equal(sport.series[0].format(30, sport.rows[3]), "30 min · RPE 2");
 assert.deepEqual(cards.sport.groups.map((g) => g.scale), ["value"]); // no fragmented RPE line
-assert.deepEqual(cards.sport.summary, { value: 30, delta: null, mode: "sum", unit: "min" });
+assert.deepEqual(cards.sport.summary, { value: 30, delta: null, key: "_minutes", mode: "sum", unit: "min" });
 // Food: partial days (only calories / no calories) -> null for the missing metric; never-tracked metrics hidden.
 assert.deepEqual(cards.food.groups.map((g) => g.scale), ["score", "value", "treat"]);
 assert.deepEqual(cards.food.groups.find((g) => g.scale === "treat").series.map((s) => s.key), ["drinks"]); // 0 drinks is data, stays visible
@@ -284,3 +292,33 @@ assert.deepEqual(fdc.groups.find((g) => g.scale === "treat").series.map((s) => s
 assert.equal(fdc.presence, undefined); // after-meal grid retired
 assert.ok(!METRICS.food.some((m) => ["veg", "protein", "processed", "first_meal", "eating_window"].includes(m.key)));
 console.log("OK food v3");
+
+// --- insights (Tvé vzorce)
+import { insights } from "./src/insights.js";
+{
+  const T = [{ id: 1, type: "sport", is_active: true }, { id: 2, type: "food", is_active: true }];
+  const day = (i) => new Date(2026, 10, 1 + i).toLocaleDateString("sv-SE");
+  // 6 sport days mood 5, 6 days without sport mood 3; alcohol on even days, next day's mood follows it.
+  const recs = Array.from({ length: 12 }, (_, i) => ({
+    date: day(i),
+    mood_score: i < 6 ? 5 : 3,
+    results: [{ template_id: 1, result_data_json: { sports: i < 6 ? [{ name: "běh", rpe: 5 }] : [] } }],
+  }));
+  const ins = insights(recs, T, new Date(2026, 10, 12));
+  assert.equal(ins.length, 1);
+  assert.equal(ins[0].text, "Ve dnech, kdy sportuješ, máš náladu v průměru o 2,0 vyšší (6 vs. 6 dní).");
+  assert.deepEqual(insights(recs.slice(2, 12), T, new Date(2026, 10, 12)), []); // 4 sport days < MIN_N
+  // A day without the sport result is "not tracked", not "no sport".
+  const untracked = recs.map((r, i) => (i >= 6 ? { ...r, results: [] } : r));
+  assert.deepEqual(insights(untracked, T, new Date(2026, 10, 12)), []);
+  // Alcohol is compared with the next day's mood.
+  const alc = Array.from({ length: 12 }, (_, i) => ({
+    date: day(i),
+    mood_score: i % 2 ? 2 : 4, // odd days (after alcohol) are bad
+    results: [{ template_id: 2, result_data_json: { drinks: i % 2 ? 0 : 2 } }],
+  }));
+  const a = insights(alc, T, new Date(2026, 10, 12));
+  assert.equal(a[0].id, "alcohol");
+  assert.ok(a[0].diff < 0 && a[0].nYes === 6 && a[0].nNo === 5, JSON.stringify(a[0])); // last no-alcohol day has no next day
+}
+console.log("OK insights");

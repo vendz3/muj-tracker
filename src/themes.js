@@ -14,14 +14,14 @@ export const THEMES = [
     chart3: "#FACC15", chart4: "#A3E635",
   },
   {
-    id: "midnight", name: "Midnight Pro", description: "Tmavá břidlice a elegantní modrá, jako dark mode v macOS.", dark: true,
-    bg: "#0F172A", card: "#1E293B", text: "#F8FAFC", accent: "#3B82F6", accent2: "#34D399", line: "#334155",
+    id: "midnight", name: "Midnight Pro", description: "Neutrální grafit s modrým akcentem. Klid a přehlednost.", dark: true,
+    bg: "#09090B", card: "#18181B", text: "#FAFAFA", accent: "#3B82F6", accent2: "#34D399", line: "#27272A",
     accentStrong: "#2563EB", accentText: "#60A5FA", onAccent: "#FFFFFF", accent2Text: "#34D399",
     chart3: "#F59E0B", chart4: "#F472B6",
   },
   {
     id: "zen", name: "Zen Minimal", description: "Čistá bílá, tlumená šalvěj a břidlice. Nic navíc.", dark: false,
-    bg: "#FFFFFF", card: "#FFFFFF", text: "#111827", accent: "#5F7F6A", accent2: "#64748B", line: "#F3F4F6",
+    bg: "#FFFFFF", card: "#FFFFFF", text: "#111827", accent: "#5F7F6A", accent2: "#64748B", line: "#E5E7EB",
     accentStrong: "#4D6B57", accentText: "#4D6B57", onAccent: "#FFFFFF", accent2Text: "#475569",
     chart3: "#B7791F", chart4: "#9F4B6E",
   },

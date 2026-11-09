@@ -7,7 +7,7 @@ export default function Rating({ value, onChange, labels, captions, label, optio
   const values = options ?? SCALE;
   const shown = reverse ? [...values].reverse() : values;
   return (
-    <div role="group" aria-label={label} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols ?? values.length}, minmax(0, 1fr))` }}>
+    <div role="group" aria-label={label} className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols ?? values.length}, minmax(0, 1fr))` }}>
       {shown.map((n) => {
         const i = values.indexOf(n); // labels / captions are indexed by value, not by screen position
         return (
@@ -17,14 +17,14 @@ export default function Rating({ value, onChange, labels, captions, label, optio
             onClick={() => onChange(n)}
             aria-pressed={value === n}
             aria-label={options ? `${label} ${labels?.[i] ?? n}` : `${label} ${n} z 5${captions ? `, ${captions[i]}` : ""}`}
-            className={`min-h-12 rounded-xl border-2 font-semibold transition active:scale-95 ${labels && !options ? "text-3xl" : "text-lg"} ${
+            className={`min-h-11 rounded-xl border font-medium tabular-nums transition motion-safe:active:scale-95 ${labels && !options ? "text-2xl" : "text-sm"} ${
               value === n
-                ? "border-accent-500 bg-accent-500/20 text-neutral-50"
-                : "border-neutral-800 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
+                ? "border-accent-500 bg-accent-500/10 text-neutral-50"
+                : "border-line bg-neutral-900 text-neutral-300 hover:bg-neutral-800"
             }`}
           >
             {labels ? labels[i] : n}
-            {captions && <span className="block text-[11px] leading-tight font-medium text-neutral-400">{captions[i]}</span>}
+            {captions && <span className="block text-[10px] leading-tight font-medium tracking-wide text-neutral-500 uppercase">{captions[i]}</span>}
           </button>
         );
       })}

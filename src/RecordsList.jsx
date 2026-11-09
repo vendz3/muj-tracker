@@ -1,4 +1,5 @@
 import { BATTERY, MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
+import { fmtHM } from "./chartData.js";
 import { card } from "./ui.js";
 
 export const fmtDate = (iso) => new Date(iso).toLocaleDateString("cs-CZ");
@@ -6,7 +7,7 @@ const fmtWeekday = (iso) => new Date(iso).toLocaleDateString("cs-CZ", { weekday:
 
 const num = (n) => n.toLocaleString("cs-CZ");
 const join = (parts) => parts.filter(Boolean).join(", ");
-// Food counts 0–5+: "bez alkoholu", "káva 3×", "sladké 5+×".
+// Food counts 0–5+: "bez alkoholu", "kofein 3×", "sladkosti 5+×".
 const count = (n, word, none) => n != null && (n === 0 ? none : `${word} ${n >= 5 ? "5+" : n}×`);
 
 // One-line summary of a day's template results, e.g. "Spánek 4, 7,5 h · fotbal 4 (60 min) · 2100 kcal, alkohol 2 · 1,5 l vody".
@@ -15,7 +16,7 @@ function summary(record, templatesById) {
     .map(({ template_id, result_data_json: d }) => {
       const type = templatesById[template_id]?.type;
       if (type === "sleep")
-        return "Spánek " + join([d.sleep_quality, d.sleep_hours != null && `${num(d.sleep_hours)} h`, d.bedtime && `usnutí ${d.bedtime}`, d.waketime && `vstávání ${d.waketime}`]);
+        return "Spánek " + join([d.sleep_quality, d.sleep_hours != null && fmtHM(d.sleep_hours), d.bedtime && `usnutí ${d.bedtime}`, d.waketime && `vstávání ${d.waketime}`]);
       if (type === "sport")
         return d.sports.length
           ? d.sports.map((s) => `${s.name} RPE ${s.rpe}` + (s.minutes != null ? ` (${s.minutes} min)` : "")).join(", ")
@@ -26,16 +27,16 @@ function summary(record, templatesById) {
           count(d.veg, "zelenina", "bez zeleniny"),
           count(d.protein, "bílkovina", "bez bílkoviny"),
           count(d.processed, "zpracované", "bez zpracovaného"),
-          d.quality != null && `kvalita jídla ${d.quality}`,
+          d.quality != null && `zdravě ${d.quality}/5`,
           count(d.drinks, "alkohol", "bez alkoholu"),
-          count(d.coffee, "káva", "bez kávy"),
-          count(d.sweets, "sladké", "bez sladkého"),
-          count(d.sugary_drinks, "slazené nápoje", "bez slazených nápojů"),
+          count(d.coffee, "kofein", "bez kofeinu"),
+          count(d.sweets, "sladkosti", "bez sladkostí"),
+          count(d.sugary_drinks, "slazené pití", "bez slazeného pití"),
           count(d.fast_food, "fast food", "bez fast foodu"),
           count(d.nicotine, "nikotin", "bez nikotinu"),
           d.meal_gap_h != null && `jídlo ${num(d.meal_gap_h)} h před spaním`,
           d.first_meal && `první jídlo ${d.first_meal}`,
-          d.last_meal && `poslední jídlo ${d.last_meal}`,
+          d.last_meal && `dojedeno ${d.last_meal}`,
           d.overate && "přejedení",
           d.slump && "útlum po jídle",
         ]);
@@ -60,17 +61,17 @@ function summary(record, templatesById) {
 
 export default function RecordsList({ records, templates, onEdit }) {
   const templatesById = Object.fromEntries(templates.map((t) => [t.id, t]));
-  if (records.length === 0) return <p className="text-neutral-400">Zatím žádné záznamy. Začni tlačítkem + dole.</p>;
+  if (records.length === 0) return <p className="text-neutral-400">Tvůj deník je zatím prázdný. Začni tlačítkem + dole.</p>;
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-2">
       {records.map((r) => (
-        <li key={r.id} className={`${card} flex items-center gap-4`}>
-          <span className="text-4xl" aria-label={`Nálada ${r.mood_score} z 5, ${MOOD_LABELS[r.mood_score - 1]}`}>
+        <li key={r.id} className={`${card} flex items-center gap-3`}>
+          <span className="text-2xl" aria-label={`Nálada ${r.mood_score} z 5, ${MOOD_LABELS[r.mood_score - 1]}`}>
             {MOODS[r.mood_score - 1]}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">{fmtDate(r.date)}</p>
-            <p className="text-sm text-neutral-500 capitalize">{fmtWeekday(r.date)}</p>
+            <p className="text-sm font-semibold">{fmtDate(r.date)}</p>
+            <p className="text-xs text-neutral-500 capitalize">{fmtWeekday(r.date)}</p>
             {r.results.length > 0 && <p className="mt-1 truncate text-sm text-neutral-400">{summary(r, templatesById)}</p>}
             {r.note && <p className="mt-1 line-clamp-2 text-sm text-neutral-400 italic">{r.note}</p>}
           </div>
@@ -78,7 +79,7 @@ export default function RecordsList({ records, templates, onEdit }) {
             type="button"
             onClick={() => onEdit(r)}
             aria-label={`Upravit záznam ${fmtDate(r.date)}`}
-            className="min-h-11 shrink-0 rounded-xl bg-neutral-800 px-4 text-sm font-medium text-accent-300 transition hover:bg-neutral-700 active:scale-95"
+            className="min-h-11 shrink-0 rounded-xl border border-line px-3 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-neutral-50"
           >
             Upravit
           </button>

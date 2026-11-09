@@ -22,10 +22,10 @@ const dayBefore = (iso) => {
 
 // Settings sub-pages: [screen, title, icon, description]
 const SETTINGS_MENU = [
-  ["templates", "Šablony", LayoutTemplate, "Tělo, produktivita, duševní zdraví"],
-  ["goals", "Cíle", Target, "Denní a týdenní mety"],
-  ["theme", "Motiv", Palette, "Barvy aplikace"],
-  ["backup", "Záloha", DatabaseBackup, "Export a import dat"],
+  ["templates", "Šablony", LayoutTemplate, "Co všechno chceš sledovat"],
+  ["goals", "Cíle", Target, "Kam to chceš dotáhnout"],
+  ["theme", "Motiv", Palette, "Jak má appka vypadat"],
+  ["backup", "Záloha", DatabaseBackup, "Ať o nic nepřijdeš"],
 ];
 
 export default function App() {
@@ -60,7 +60,7 @@ export default function App() {
   const yesterday = editing && records.find((r) => r.date === dayBefore(editing.date));
 
   return (
-    <main className="relative mx-auto min-h-screen w-full max-w-md px-4 pt-6 pb-32">
+    <main className="relative mx-auto min-h-screen w-full max-w-md px-4 pt-4 pb-28">
       {!main ? (
         <header className="mb-4 flex items-center gap-1">
           <button
@@ -69,21 +69,21 @@ export default function App() {
             aria-label={sub ? "Zpět do nastavení" : "Zpět na přehled"}
             className="-ml-2 flex size-11 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-neutral-50"
           >
-            <ChevronLeft size={28} aria-hidden="true" />
+            <ChevronLeft size={22} aria-hidden="true" />
           </button>
-          <h1 className="text-3xl font-bold tracking-tight">{sub ? sub[1] : "Nastavení"}</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{sub ? sub[1] : "Nastavení"}</h1>
         </header>
       ) : (
         <header className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Historie"}</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Historie"}</h1>
           <span className="flex items-center gap-1">
             {screen === "overview" && !error && (
               // Days in a row with a record; lit while the streak is alive.
               <span
                 aria-label={`Série: ${streak} ${streak === 1 ? "den" : streak >= 2 && streak <= 4 ? "dny" : "dní"} v řadě`}
-                className={`flex items-center gap-1 rounded-full px-3 py-1 text-lg font-bold ${streak ? "bg-accent2/15 text-accent2-text" : "bg-neutral-800 text-neutral-500"}`}
+                className={`flex items-center gap-1 rounded-full border border-line px-3 py-1 text-sm font-semibold tabular-nums ${streak ? "text-accent2-text" : "text-neutral-500"}`}
               >
-                <Flame size={22} aria-hidden="true" fill={streak ? "currentColor" : "none"} />
+                <Flame size={16} aria-hidden="true" fill={streak ? "currentColor" : "none"} />
                 {streak}
               </span>
             )}
@@ -93,14 +93,14 @@ export default function App() {
               aria-label="Nastavení"
               className="-mr-2 flex size-11 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-neutral-50"
             >
-              <Settings size={24} aria-hidden="true" />
+              <Settings size={20} aria-hidden="true" />
             </button>
           </span>
         </header>
       )}
 
       {error && (
-        <p role="alert" className="mb-4 rounded-xl bg-red-500/10 p-3 text-red-400">
+        <p role="alert" className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </p>
       )}
@@ -109,22 +109,22 @@ export default function App() {
       {screen === "charts" && !error && <Dashboard records={records} templates={templates} />}
 
       {screen === "settings" && (
-        <ul className="space-y-3">
+        <ul className="space-y-2">
           {SETTINGS_MENU.map(([key, title, Icon, desc]) => (
             <li key={key}>
               <button
                 type="button"
                 onClick={() => setScreen(key)}
-                className={`${card} flex w-full items-center gap-4 text-left transition hover:bg-neutral-800 active:scale-[0.98]`}
+                className={`${card} flex w-full items-center gap-3 text-left transition-colors hover:bg-neutral-800`}
               >
-                <span className="flex size-11 items-center justify-center rounded-xl bg-accent-500/15 text-accent-300">
-                  <Icon size={22} aria-hidden="true" />
+                <span className="flex size-9 items-center justify-center rounded-xl border border-line bg-neutral-800 text-neutral-300">
+                  <Icon size={18} aria-hidden="true" />
                 </span>
                 <span className="flex-1">
-                  <span className="block font-semibold">{title}</span>
-                  <span className="block text-sm text-neutral-500">{desc}</span>
+                  <span className="block text-sm font-semibold">{title}</span>
+                  <span className="block text-xs text-neutral-500">{desc}</span>
                 </span>
-                <ChevronRight size={20} className="text-neutral-600" aria-hidden="true" />
+                <ChevronRight size={16} className="text-neutral-600" aria-hidden="true" />
               </button>
             </li>
           ))}

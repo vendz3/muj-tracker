@@ -14,9 +14,18 @@
   --color-chart4: #f472b6;
   --color-accent2: #34d399;
   --color-accent2-text: #34d399;
-  --color-line: #334155;
+  --color-line: #27272A;
   --color-shade: #00000066;
   --animate-slide-up: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+
+  --animate-toast-in: toast-in 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
 
   @keyframes slide-up {
     from {

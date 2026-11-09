@@ -9,29 +9,29 @@ import { card, checkRow, checkbox, input, primary } from "./ui.js";
 const FLAGS = {
   sleep: [
     ["quality", "Sledovat kvalitu (1–5)"],
-    ["hours", "Sledovat čas (hodiny)"],
-    ["times", "Sledovat čas usnutí a vstávání"],
+    ["hours", "Sledovat, kolik hodin spíš"],
+    ["times", "Sledovat, kdy usínáš a vstáváš"],
   ],
-  sport: [["duration", "Sledovat trvání (minuty)"]],
+  sport: [["duration", "Sledovat délku tréninku (minuty)"]],
   reading: [
-    ["minutes", "Sledovat čas (minuty)"],
+    ["minutes", "Sledovat minuty čtení"],
     ["pages", "Sledovat stránky"],
   ],
   food: [
-    ["quality", "Sledovat kvalitu (1–5)"],
+    ["quality", "Sledovat, jak zdravě jíš (1–5)"],
     ["calories", "Sledovat kalorie"],
-    ["alcohol", "Sledovat alkohol (drinky)"],
-    ["caffeine", "Sledovat kofein (šálky)"],
-    ["sugar", "Sledovat sladkosti (porce)"],
-    ["sugary_drinks", "Sledovat slazené nápoje"],
+    ["alcohol", "Sledovat alkohol"],
+    ["caffeine", "Sledovat kofein"],
+    ["sugar", "Sledovat sladkosti"],
+    ["sugary_drinks", "Sledovat slazené pití"],
     ["fast_food", "Sledovat fast food"],
     ["nicotine", "Sledovat nikotin"],
-    ["meal_times", "Sledovat čas posledního jídla"],
+    ["meal_times", "Sledovat poslední sousto (čas)"],
   ],
   mind: [
-    ["clarity", "Sledovat mentální jasnost (1–5)"],
+    ["clarity", "Sledovat jasnou hlavu (1–5)"],
     ["energy", "Sledovat odpolední energii (1–5)"],
-    ["frustration", "Sledovat frustraci (1–5)"],
+    ["frustration", "Sledovat podrážděnost (1–5)"],
   ],
   nap: [["grogginess", "Sledovat rozespalost po napu (1–5)"]],
   social: [["battery", "Sledovat sociální baterii (1–5)"]],
@@ -42,8 +42,8 @@ const FLAGS = {
 const LISTS = {
   sport: { field: "sports", title: "Sporty na výběr", none: "Zatím žádné sporty.", inputLabel: "Nový sport", placeholder: "např. florbal" },
   emotions: { field: "emotions", title: "Emoce na výběr", none: "Zatím žádné emoce.", inputLabel: "Nová emoce", placeholder: "např. klid" },
-  social: { field: "kinds", title: "Typy kontaktu (pořadí = od žádného po největší skupinu)", none: "Zatím žádné typy.", inputLabel: "Nový typ kontaktu", placeholder: "např. rodina" },
-  medication: { field: "items", title: "Co bereš (při zápisu jen klikneš)", none: "Zatím nic. Přidej svoje suplementy a léky.", inputLabel: "Nový suplement nebo lék", placeholder: "např. vitamín D" },
+  social: { field: "kinds", title: "Typy kontaktu (seřaď od samoty po velkou partu)", none: "Zatím žádné typy.", inputLabel: "Nový typ kontaktu", placeholder: "např. rodina" },
+  medication: { field: "items", title: "Co bereš (při zápisu jen odklikneš)", none: "Zatím nic. Přidej svoje suplementy a léky.", inputLabel: "Nový suplement nebo lék", placeholder: "např. vitamín D" },
 };
 
 // Fasting type is set once here, so the daily entry is a single yes/no tap.
@@ -62,7 +62,7 @@ function FastingSettings({ config, onChange }) {
   }
   return (
     <div className="space-y-2">
-      <p className="text-sm text-neutral-400">Jaký půst držíš?</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">Jaký půst držíš?</p>
       {option(true, "Celodenní")}
       {option(false, "Několikahodinový")}
       {!config.full_day && (
@@ -98,17 +98,17 @@ function ListEditor({ items, title, none, inputLabel, placeholder, onChange }) {
   }
   return (
     <>
-      <p className="text-sm text-neutral-400">{title}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">{title}</p>
       <div className="flex flex-wrap gap-2">
         {items.length === 0 && <small className="text-neutral-500">{none}</small>}
         {items.map((s) => (
-          <span key={s} className="flex items-center rounded-full bg-accent-500/15 pl-4 text-accent-200">
+          <span key={s} className="flex items-center rounded-full border border-line bg-neutral-800 pl-4 text-sm text-neutral-200">
             {s}
             <button
               type="button"
               aria-label={`Odebrat ${s}`}
               onClick={() => onChange(items.filter((x) => x !== s))}
-              className="size-11 rounded-full text-lg text-accent-300 hover:text-neutral-50"
+              className="size-11 rounded-full text-base text-neutral-500 hover:text-neutral-50"
             >
               ×
             </button>
@@ -122,6 +122,27 @@ function ListEditor({ items, title, none, inputLabel, placeholder, onChange }) {
         </button>
       </form>
     </>
+  );
+}
+
+// On/off switch (templates, goals). Stops the click so a surrounding clickable row doesn't toggle too.
+export function Switch({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={`${label}: ${checked ? "zapnuto" : "vypnuto"}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!checked);
+      }}
+      className="flex h-12 w-16 shrink-0 items-center justify-center transition motion-safe:active:scale-95"
+    >
+      <span className={`relative h-8 w-14 rounded-full transition-colors ${checked ? "bg-accent-600" : "bg-neutral-700"}`}>
+        <span className={`absolute top-1 left-1 size-6 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-6" : ""}`} />
+      </span>
+    </button>
   );
 }
 
@@ -156,7 +177,7 @@ export default function Templates({ templates, onChange }) {
   return (
     <section className="space-y-3">
       {error && (
-        <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
+        <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </p>
       )}
@@ -164,7 +185,7 @@ export default function Templates({ templates, onChange }) {
       {groupTemplates(templates).map(({ title: heading, templates: group }) => {
         return group.length > 0 && (
           <div key={heading} className="space-y-3 pt-2 first:pt-0">
-            <h2 className="px-1 text-sm font-semibold tracking-wide text-neutral-500 uppercase">{heading}</h2>
+            <h2 className="px-1 text-xs font-medium tracking-wider text-neutral-500 uppercase">{heading}</h2>
       {group.map((t) => {
         const open = openId === t.id;
         const flags = FLAGS[t.type] ?? [];
@@ -184,25 +205,9 @@ export default function Templates({ templates, onChange }) {
                   aria-hidden="true"
                   className={`shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180 text-accent-400" : ""}`}
                 />
-                <span className={`text-lg font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
+                <span className={`text-sm font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
               </button>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={t.is_active}
-                aria-label={`${t.name}: ${t.is_active ? "zapnuto" : "vypnuto"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  update(t, { is_active: !t.is_active });
-                }}
-                className="flex h-12 w-16 shrink-0 items-center justify-center"
-              >
-                <span className={`relative h-8 w-14 rounded-full transition-colors ${t.is_active ? "bg-accent-600" : "bg-neutral-700"}`}>
-                  <span
-                    className={`absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform ${t.is_active ? "translate-x-6" : ""}`}
-                  />
-                </span>
-              </button>
+              <Switch checked={t.is_active} label={t.name} onChange={(on) => update(t, { is_active: on })} />
             </div>
 
             {/* grid-rows 0fr -> 1fr animates height without measuring; inert keeps hidden controls out of tab order. */}
@@ -212,7 +217,7 @@ export default function Templates({ templates, onChange }) {
               className={`grid transition-[grid-template-rows] duration-200 ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
             >
               <div className="overflow-hidden">
-                <div className="mt-3 space-y-3 rounded-xl bg-neutral-950/60 p-3 ring-1 ring-neutral-50/5">
+                <div className="mt-3 space-y-3 rounded-xl border border-line bg-neutral-950 p-3">
                   {LISTS[t.type] && (
                     <ListEditor
                       {...LISTS[t.type]}
@@ -245,7 +250,7 @@ export default function Templates({ templates, onChange }) {
                   {goals.filter((g) => !g.flag).map((meta) => goalLine(t, meta))}
 
                   {!LISTS[t.type] && t.type !== "fasting" && flags.length === 0 && !goals.some((g) => t.config_json.goals?.[g.key]) && (
-                    <p className="text-sm text-neutral-500">Tato šablona nemá další nastavení.</p>
+                    <p className="text-sm text-neutral-500">Tady není co nastavovat – stačí zapnout.</p>
                   )}
                 </div>
               </div>

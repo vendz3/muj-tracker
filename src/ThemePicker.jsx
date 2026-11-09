@@ -16,12 +16,12 @@ export default function ThemePicker({ value, onChange }) {
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(t.id)}
-            className={`${card} flex min-h-12 w-full items-center gap-4 text-left transition active:scale-[0.98] ${
-              selected ? "ring-2 ring-accent-500" : "hover:bg-neutral-800"
+            className={`${card} flex min-h-12 w-full items-center gap-3 text-left transition-colors ${
+              selected ? "border-accent-500" : "hover:bg-neutral-800"
             }`}
           >
             <span
-              className="flex h-14 w-16 shrink-0 flex-col justify-between rounded-xl p-2 ring-1 ring-neutral-50/10"
+              className="flex h-12 w-14 shrink-0 flex-col justify-between rounded-xl border border-line p-1.5"
               style={{ background: t.bg }}
               aria-hidden="true"
             >
@@ -39,14 +39,14 @@ export default function ThemePicker({ value, onChange }) {
               </span>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">{t.name}</span>
-              <span className="block text-sm text-neutral-500">{t.description}</span>
+              <span className="block text-sm font-semibold">{t.name}</span>
+              <span className="block text-xs text-neutral-500">{t.description}</span>
             </span>
             <span
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full ${selected ? "bg-accent-600 text-on-accent" : "ring-2 ring-neutral-700"}`}
+              className={`flex size-5 shrink-0 items-center justify-center rounded-full ${selected ? "bg-accent-600 text-on-accent" : "ring-2 ring-neutral-700"}`}
               aria-hidden="true"
             >
-              {selected && <Check size={18} strokeWidth={3} />}
+              {selected && <Check size={12} strokeWidth={3} />}
             </span>
           </button>
         );

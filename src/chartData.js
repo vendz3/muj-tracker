@@ -30,31 +30,42 @@ export const fmtClock = (v) => {
   const m = Math.round(v * 60) % (24 * 60);
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
 };
+// Decimal hours -> "8 h 44 min" ("8 h" when whole).
+export const fmtHM = (h) => {
+  const t = Math.round(h * 60);
+  return `${Math.floor(t / 60)} h${t % 60 ? ` ${t % 60} min` : ""}`;
+};
+// "23:50" + 15 min -> "00:05", "00:05" - 15 -> "23:50": wraps over midnight both ways.
+export const shiftClock = (s, minutes) => {
+  const [h, m] = s.split(":").map(Number);
+  const t = (((h * 60 + m + minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
 const clock = (key, label, color, wrap) => ({ key, label, color, unit: "", scale: "clock", format: fmtClock, get: (d) => toClock(d[key], wrap) });
 
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 export const METRICS = {
-  sleep: [score("sleep_quality", "Kvalita", A1), clock("bedtime", "Usnutí", A3, true), clock("waketime", "Vstávání", A4), value("sleep_hours", "Spánek", "h", A2)],
+  sleep: [score("sleep_quality", "Kvalita", A1), clock("bedtime", "Usnutí", A3, true), clock("waketime", "Vstávání", A4), { ...value("sleep_hours", "Spánek", "h", A2), format: fmtHM }],
   sport: [], // drawn by sportSeries(): stacked minutes or activities per sport
-  // better: which end of the 1–5 scale is the good one (shown as "méně = lépe" where it isn't the usual high).
+  // better: which end of the 1–5 scale is the good one.
   food: [
-    { ...score("quality", "Kvalita", A1), better: "high" },
-    value("calories", "Příjem", "kcal", A1),
+    { ...score("quality", "Zdravě", A1), better: "high" },
+    value("calories", "Kalorie", "kcal", A1),
     treat("drinks", "Alkohol", A4),
     treat("coffee", "Kofein", A1),
     treat("sweets", "Sladkosti", A3),
-    treat("sugary_drinks", "Slazené nápoje", A2),
+    treat("sugary_drinks", "Slazené pití", A2),
     treat("fast_food", "Fast food", A4),
     treat("nicotine", "Nikotin", A1),
-    clock("last_meal", "Poslední jídlo", A2),
+    clock("last_meal", "Poslední sousto", A2),
     // Own scale "hours": hours before sleep (computed from the next day's bedtime in templateCharts) must not share
     // the kcal axis.
-    { ...value("meal_gap_h", "Jídlo před spaním", "h", A2), scale: "hours" },
+    { ...value("meal_gap_h", "Pauza před spaním", "h", A2), scale: "hours" },
   ],
   mind: [
-    { ...score("clarity", "Jasnost", A1), better: "high" },
+    { ...score("clarity", "Jasná hlava", A1), better: "high" },
     { ...score("energy", "Energie", A2), better: "high" },
-    { ...score("frustration", "Frustrace", A3), better: "low" },
+    { ...score("frustration", "Podrážděnost", A3), better: "low" },
   ],
   // Grogginess exists only on nap days: drawn against nap length (napScatter), not over time.
   nap: [{ ...value("minutes", "Nap", "min", A1), zeroFill: true }],
@@ -179,9 +190,9 @@ export function withRollingAvg(rows, keys, n = WEEK, minN = 3) {
 }
 
 // Every calendar day from the first record in the window to today, so a missing day is a gap, not a jump.
-export function lastDays(records, today = new Date()) {
+export function lastDays(records, today = new Date(), n = DAYS) {
   const start = new Date(today);
-  start.setDate(start.getDate() - (DAYS - 1));
+  start.setDate(start.getDate() - (n - 1));
   const byDate = Object.fromEntries(records.map((r) => [r.date, r]));
   const first = records.map((r) => r.date).filter((d) => d >= iso(start)).sort()[0];
   if (!first) return [];
@@ -339,7 +350,7 @@ export function templateCharts(days, templates) {
     for (const g of groups) g.goalInfo = g.series.some((s) => s.stack) ? goals._minutes : g.series.length === 1 ? g.series[0].goalInfo : undefined;
     const pick = SUMMARY[t.type]?.find(([key]) => rows.some((r) => r[key] != null));
     const summary = pick && weekSummary(rows, pick[0], pick[1]);
-    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), ...(t.type === "nap" && { scatter: napScatter(data) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
+    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), ...(t.type === "nap" && { scatter: napScatter(data) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, key: pick[0], mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
   }
   return cards;
 }

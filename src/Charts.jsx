@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
@@ -34,7 +34,7 @@ function ChartTooltip({ active, payload, label, series }) {
   // Stacked sport segments at 0 are sports not done that day: list only what happened.
   const items = series.filter((s) => row[s.key] != null && !(s.stack && row[s.key] === 0));
   return (
-    <div className="rounded-xl bg-neutral-800/95 px-3 py-2 text-sm shadow-md ring-1 ring-neutral-50/10 backdrop-blur">
+    <div className="rounded-xl border border-line bg-neutral-900 px-2.5 py-1.5 text-xs shadow-sm">
       <p className="mb-1 text-neutral-400 capitalize">{longDate(label)}</p>
       {items.length === 0 && <p className="text-neutral-500">{row._minutes === 0 ? "Bez sportu" : "Nevyplněno"}</p>}
       {items.map((s) => {
@@ -230,10 +230,10 @@ function Summary({ summary }) {
   const fmt = whole ? (n) => Math.round(n).toLocaleString("cs-CZ") : statNum;
   const flat = delta != null && Math.abs(delta) < (whole ? 0.5 : 0.05);
   const trend =
-    delta == null ? `za ${WEEK} dní` : flat ? "→ beze změny" : `${delta > 0 ? "↑ +" : "↓ −"}${fmt(Math.abs(delta))}${du} vs. předchozích ${WEEK}`;
+    delta == null ? `za ${WEEK} dní` : flat ? "→ beze změny" : `${delta > 0 ? "↑ +" : "↓ −"}${fmt(Math.abs(delta))}${du} oproti minulému týdnu`;
   return (
     <div className="text-right">
-      <p className="text-lg leading-tight font-semibold text-neutral-100">
+      <p className="text-base leading-tight font-semibold tabular-nums text-neutral-100">
         {mode === "avg" ? "Ø " : ""}
         {fmt(value)}
         {u}
@@ -290,7 +290,7 @@ export function WeekGoal({ info }) {
 function CardHeader({ title, summary, aside }) {
   return (
     <div className="mb-2 flex items-start justify-between gap-3">
-      <h2 className="font-semibold text-neutral-300">{title}</h2>
+      <h2 className="pt-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500">{title}</h2>
       {aside ?? <Summary summary={summary} />}
     </div>
   );
@@ -306,7 +306,7 @@ function EmotionGrid({ grid, title, words = ["cítil(a)", "vyplněno bez ní"] }
   const cols = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
   const ticks = [0, Math.floor((n - 1) / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i);
   return (
-    <div role="img" aria-label={`${title}: ${grid.rows.map((r) => `${r.name} ${r.total}×`).join(", ")} za posledních ${DAYS} dní`}>
+    <div role="img" aria-label={`${title}: ${grid.rows.map((r) => `${r.name} ${r.total}×`).join(", ")} za posledních ${grid.dates.length} dní`}>
       <div className="mb-1 flex text-[11px] text-neutral-500">
         <span className="w-24 shrink-0" />
         <span className="flex-1" />
@@ -356,7 +356,7 @@ function EmotionGrid({ grid, title, words = ["cítil(a)", "vyplněno bez ní"] }
 function PresenceCount({ n, of, text }) {
   return (
     <div className="text-right">
-      <p className="text-lg leading-tight font-semibold text-neutral-100">
+      <p className="text-base leading-tight font-semibold tabular-nums text-neutral-100">
         {n}/{of}
       </p>
       <p className="text-xs text-neutral-500">
@@ -373,17 +373,17 @@ const PRESENCE_UI = {
 
 // Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
 function LoadLine({ load, timed }) {
-  if (!timed) return <p className="mb-2 text-xs text-neutral-500">Zátěž (RPE × minuty) se spočítá, když zapneš sledování trvání.</p>;
+  if (!timed) return <p className="mb-2 text-xs text-neutral-500">Zapni si v Šablonách délku tréninku a spočítám ti zátěž (námaha × minuty).</p>;
   if (!load) return null;
   return (
     <p className="mb-2 text-xs text-neutral-400">
       Zátěž {WEEK} dní <b className="font-semibold text-neutral-100">{statNum(load.acute)}</b>
       {" · "}
       {load.acwr == null ? (
-        "poměr akutní/chronická po 28 dnech dat"
+        "poměr týden vs. měsíc ukážu po 28 dnech dat"
       ) : (
         <>
-          akutní/chronická <b className="font-semibold text-neutral-100">{num(load.acwr)}</b> – {load.zone}
+          týden vs. měsíc <b className="font-semibold text-neutral-100">{num(load.acwr)}</b> – {load.zone}
         </>
       )}
     </p>
@@ -393,7 +393,7 @@ function LoadLine({ load, timed }) {
 function EmotionTop({ grid }) {
   return (
     <div className="text-right">
-      <p className="text-lg leading-tight font-semibold text-neutral-100 first-letter:uppercase">{grid.top ?? "–"}</p>
+      <p className="text-base leading-tight font-semibold text-neutral-100 first-letter:uppercase">{grid.top ?? "–"}</p>
       <p className="text-xs text-neutral-500">{grid.top ? `nejčastěji za ${WEEK} dní` : `za ${WEEK} dní bez záznamu`}</p>
     </div>
   );
@@ -423,11 +423,7 @@ function ScoreRows({ rows, series, title, scale = "score" }) {
                 {s.label}
               </p>
               <p className="text-xs text-neutral-500">
-                {scale === "clock" ? (clockText(s.key) ?? "–") : stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}
-                {s.better === "low" && <span className="block text-[11px] text-neutral-600">méně = lépe</span>}
-                {/* Counts read "less is better" by default here, so say it when more is the good end (vegetables). */}
-                {counts && s.better === "high" && <span className="block text-[11px] text-neutral-600">více = lépe</span>}
-              </p>
+                {scale === "clock" ? (clockText(s.key) ?? "–") : stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}              </p>
               {s.goalInfo && (
                 <p className="text-xs leading-tight">
                   <GoalStatus info={s.goalInfo} short />
@@ -443,7 +439,7 @@ function ScoreRows({ rows, series, title, scale = "score" }) {
                 showXAxis={last}
                 height={last ? 82 : 58}
                 goal={s.goalInfo}
-                label={`${title}: ${s.label} za posledních ${DAYS} dní`}
+                label={`${title}: ${s.label} za posledních ${rows.length} dní`}
               />
             </div>
           </div>
@@ -486,7 +482,7 @@ function NapScatter({ scatter }) {
               cursor={false}
               content={({ active, payload }) =>
                 active && payload?.length ? (
-                  <div className="rounded-xl bg-neutral-800/95 px-3 py-2 text-sm text-neutral-100 shadow-md ring-1 ring-neutral-50/10">
+                  <div className="rounded-xl border border-line bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-100 shadow-sm">
                     {payload[0].payload.minutes} min · rozespalost <b>{payload[0].payload.grogginess}</b>
                     {payload[0].payload.n > 1 && <span className="text-neutral-400"> · {payload[0].payload.n}×</span>}
                   </div>
@@ -517,13 +513,13 @@ function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, we
         <div key={g.scale}>
           {(g.scale === "score" && g.series.length > 1) || g.scale === "count" || g.scale === "treat" || g.scale === "clock" ? (
             <>
-              <p className="mb-1 text-xs text-neutral-500">{{ count: "Co jsi jedl(a) · porce za den", treat: "Neřesti · počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wider text-neutral-500">{{ count: "Co jsi jedl(a) · porce za den", treat: "Hříšky a povzbuzováky · kolik za den", clock: "Čas · menší rozptyl = pravidelnější rytmus" }[g.scale] ?? "Hodnocení 1–5"}</p>
               <ScoreRows rows={g.rows} series={g.series} title={template.name} scale={g.scale} />
             </>
           ) : (
             <>
               {/* One-series charts carry no legend, so the subtitle names the metric and its unit. */}
-              <p className="mb-1 text-xs text-neutral-500">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wider text-neutral-500">
                 {subtitle(g)}
                 {g.goalInfo && g.goalInfo !== summary?.goalInfo && (
                   <>
@@ -545,7 +541,7 @@ function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, we
                 height={g.series.length > 1 ? 168 : 140}
                 goal={g.goalInfo}
                 week={week}
-                label={`${template.name}: ${g.series.map((s) => s.label).join(", ")}${week ? " za týden" : ` za posledních ${DAYS} dní`}`}
+                label={`${template.name}: ${g.series.map((s) => s.label).join(", ")}${week ? " za týden" : ` za posledních ${g.rows.length} dní`}`}
               />
             </>
           )}
@@ -555,7 +551,7 @@ function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, we
     {scatter && (
       <div className="mt-3">
         <p className="mb-1 text-xs text-neutral-500">
-          Rozespalost podle délky napu (1–5, méně = lépe) · <span className="inline-block w-3.5 border-t border-dashed align-middle" style={{ borderColor: GOAL_INK }} aria-hidden="true" /> {NAP_SHORT} min
+          Rozespalost podle délky napu (1–5) · <span className="inline-block w-3.5 border-t border-dashed align-middle" style={{ borderColor: GOAL_INK }} aria-hidden="true" /> {NAP_SHORT} min
         </p>
         <NapScatter scatter={scatter} />
       </div>
@@ -605,7 +601,7 @@ function SportRings({ group, goals }) {
       <div className="min-w-0 flex-1 space-y-1.5 text-sm">
         <p className="text-xs text-neutral-500">Posledních {rows.length} dní</p>
         <p className="text-neutral-300">
-          Celkem <b className="text-lg font-semibold text-neutral-100">{statNum(all)}</b> {unit(all)}
+          Celkem <b className="text-base font-semibold tabular-nums text-neutral-100">{statNum(all)}</b> {unit(all)}
           {target && (
             <span className="block text-xs text-neutral-400">
               cíl {statNum(target)} {unit(target)}{" "}
@@ -628,6 +624,25 @@ function SportRings({ group, goals }) {
   );
 }
 
+// Two-or-more option toggle (sport Týden/Měsíc, chart range 14 dní/Měsíc).
+function Segmented({ value, options, onChange, label }) {
+  return (
+    <div className="inline-flex rounded-xl bg-neutral-800 p-0.5" role="group" aria-label={label}>
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className={`min-h-10 rounded-lg px-3 text-xs font-medium transition motion-safe:active:scale-95 ${value === v ? "bg-neutral-700 text-neutral-50" : "text-neutral-400 hover:text-neutral-200"}`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Sport: Týden (rolling 7 days ending today, arrows or swipe to the 7 before, every day labelled) | Měsíc (activity rings, SportRings).
 function SportCard({ month, records }) {
   const [view, setView] = useState("week");
@@ -638,16 +653,6 @@ function SportCard({ month, records }) {
   const canBack = days[0].date > first;
   const go = (d) => (d < 0 ? canBack && setOffset(offset - 1) : offset < 0 && setOffset(offset + 1));
   const chart = view === "week" ? templateCharts(days, [month.template])[0] : month;
-  const seg = (v, text) => (
-    <button
-      type="button"
-      aria-pressed={view === v}
-      onClick={() => setView(v)}
-      className={`min-h-12 rounded-lg px-4 text-sm font-semibold transition ${view === v ? "bg-neutral-700 text-neutral-50" : "text-neutral-400 hover:text-neutral-200"}`}
-    >
-      {text}
-    </button>
-  );
   const arrow = (d, Icon, aria, disabled) => (
     <button type="button" onClick={() => go(d)} disabled={disabled} aria-label={aria} className="flex size-12 items-center justify-center rounded-xl text-neutral-300 hover:bg-neutral-800 disabled:opacity-30">
       <Icon size={20} aria-hidden="true" />
@@ -663,9 +668,8 @@ function SportCard({ month, records }) {
     >
       <CardHeader title={month.template.name} summary={chart?.summary} />
       <LoadLine load={month.load} timed={month.template.config_json?.duration} />
-      <div className="mb-2 inline-flex rounded-xl bg-neutral-800 p-0.5" role="group" aria-label="Období grafu">
-        {seg("week", "Týden")}
-        {seg("month", "Měsíc")}
+      <div className="mb-2">
+        <Segmented value={view} onChange={setView} label="Období grafu" options={[["week", "Týden"], ["month", "Měsíc"]]} />
       </div>
       {view === "week" && (
         <div className="mb-2 flex items-center justify-between">
@@ -682,7 +686,7 @@ function SportCard({ month, records }) {
       ) : chart ? (
         <CardBody chart={chart} week />
       ) : (
-        <p className="py-8 text-center text-sm text-neutral-500">V tomto týdnu bez záznamu sportu</p>
+        <p className="py-8 text-center text-sm text-neutral-500">Tenhle týden bez sportu</p>
       )}
     </div>
   );
@@ -723,35 +727,125 @@ function PresenceCard({ chart }) {
   );
 }
 
+const RANGE_KEY = "chart-range";
+const RANGES = [[14, "14 dní"], [DAYS, "Měsíc"]];
+
+// Tiny trend line for a compact row: no axes, no grid, gaps where a day has no value.
+function Sparkline({ values }) {
+  const xs = values.filter((v) => v != null);
+  if (xs.length < 2) return <span className="text-xs text-neutral-600">málo dat</span>;
+  const lo = Math.min(...xs);
+  const span = Math.max(...xs) - lo || 1;
+  const n = values.length;
+  const segments = [[]];
+  values.forEach((v, i) => {
+    if (v == null) return segments.at(-1).length && segments.push([]);
+    segments.at(-1).push(`${n > 1 ? (i / (n - 1)) * 100 : 50},${22 - ((v - lo) / span) * 20}`);
+  });
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-6 w-full" aria-hidden="true">
+      {segments.filter((s) => s.length > 1).map((s) => (
+        <polyline key={s[0]} points={s.join(" ")} fill="none" stroke="var(--color-accent-500)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      ))}
+    </svg>
+  );
+}
+
+// Headline of a compact row: "Ø 2 140 kcal ↑" (sum: "95 min / 7 d"). Arrow vs the 7 days before.
+function CompactValue({ summary }) {
+  const { value, delta, mode, unit } = summary;
+  const u = typeof unit === "function" ? unit(Math.round(value)) : unit;
+  const arrow = delta == null || Math.abs(delta) < Math.abs(value) * 0.02 ? "" : delta > 0 ? " ↑" : " ↓";
+  return (
+    <span className="text-sm font-semibold whitespace-nowrap text-neutral-100 tabular-nums">
+      {mode === "avg" ? "Ø " : ""}
+      {statNum(value)}
+      {u ? ` ${u}` : ""}
+      {mode === "sum" && <span className="font-normal text-neutral-500"> / {WEEK} d</span>}
+      <span className="text-neutral-400">{arrow}</span>
+    </span>
+  );
+}
+
+// Secondary metric as one scannable row (name · sparkline · value); tap opens the full card under it.
+function CompactRow({ chart, records, full, index }) {
+  const [open, setOpen] = useState(false);
+  const ui = PRESENCE_UI[chart.template.type];
+  const s = chart.summary;
+  const id = `compact-${chart.template.id}`;
+  return (
+    <li>
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className="flex min-h-12 w-full items-center gap-3 py-2 text-left">
+        <span className="w-28 shrink-0 truncate text-sm text-neutral-200">{chart.template.name}</span>
+        <span className="min-w-0 flex-1">{s ? <Sparkline values={chart.rows.map((r) => r[s.key])} /> : null}</span>
+        <span className="shrink-0">
+          {s && !(chart.presence && !ui?.keepSummary) ? <CompactValue summary={s} /> : chart.presence ? (ui?.aside?.(chart.presence) ?? <EmotionTop grid={chart.presence} />) : null}
+        </span>
+        <ChevronDown size={16} className={`shrink-0 text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <div id={id} className="border-t border-line pt-3 pb-2" style={cycleVars(index)}>
+          {chart.template.type === "sport" ? <SportCard month={full} records={records} /> : <PresenceCard chart={chart} />}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// Main metrics drawn big at the top: sleep and sport when they have data, else the first cards.
+const PRIMARY = ["sleep", "sport"];
+
 export default function Dashboard({ records, templates }) {
-  const days = lastDays(records);
+  const [range, setRangeState] = useState(() => (Number(localStorage.getItem(RANGE_KEY)) === 14 ? 14 : DAYS));
+  const setRange = (n) => (localStorage.setItem(RANGE_KEY, n), setRangeState(n));
+  const days = lastDays(records, new Date(), range);
   const moodRows = days.map(({ date, record }) => ({ date, mood: record?.mood_score ?? null }));
   const charts = templateCharts(days, templates);
-  if (records.length < 2) return <p className="text-neutral-400">Grafy se zobrazí, až budeš mít aspoň 2 záznamy.</p>;
+  // Sport load (ACWR needs 28 days) and the sport "Měsíc" rings always use the full month.
+  const full = range === DAYS ? charts : templateCharts(lastDays(records), templates);
+  if (records.length < 2) return <p className="text-neutral-400">Grafy ožijí s druhým záznamem. Zapiš si zítra další den.</p>;
   const moodSummary = weekSummary(moodRows, "mood");
+  const primary = [...PRIMARY.map((type) => charts.find((c) => c.template.type === type)).filter(Boolean), ...charts].filter((c, i, a) => a.indexOf(c) === i).slice(0, 2);
+  const rest = charts.filter((c) => !primary.includes(c));
+  const sections = [];
+  for (const c of rest) {
+    const title = sectionTitle(c.template.type);
+    if (sections.at(-1)?.[0] === title) sections.at(-1)[1].push(c);
+    else sections.push([title, [c]]);
+  }
+  const monthOf = (chart) => full.find((c) => c.template.id === chart.template.id) ?? chart;
   // Section heading before the first card of each section (same sections and order as the day entry).
-  const heading = (title) => <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{title}</h2>;
+  const heading = (title) => <h2 className="px-1 pt-2 text-xs font-medium tracking-wider text-neutral-500 uppercase">{title}</h2>;
   return (
-    <div className="space-y-4">
-      {heading(SECTIONS[0].title)}
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Segmented value={range} onChange={setRange} label="Délka grafů" options={RANGES} />
+      </div>
+      {heading("Hlavní")}
       <section className={card}>
         <CardHeader title="Vývoj nálady" summary={moodSummary && { ...moodSummary, mode: "avg", unit: "" }} />
-        <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${DAYS} dní`} />
+        <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${moodRows.length} dní`} />
       </section>
-      {charts.map((chart, i) => (
-        <Fragment key={chart.template.id}>
-        {sectionTitle(chart.template.type) !== (i ? sectionTitle(charts[i - 1].template.type) : SECTIONS[0].title) && heading(sectionTitle(chart.template.type))}
-        <section className={card} style={cycleVars(i)}>
-          {chart.template.type === "sport" ? (
-            <SportCard month={chart} records={records} />
-          ) : (
-            <PresenceCard chart={chart} />
-          )}
+      {primary.map((chart) => (
+        <section key={chart.template.id} className={card} style={cycleVars(charts.indexOf(chart))}>
+          {chart.template.type === "sport" ? <SportCard month={monthOf(chart)} records={records} /> : <PresenceCard chart={chart} />}
         </section>
+      ))}
+      {/* Everything else: one compact card per section (same sections and order as the day entry). */}
+      {sections.map(([title, list]) => (
+        <Fragment key={title}>
+          {heading(title)}
+          <section className={`${card} py-1`}>
+            <ul className="divide-y divide-line">
+              {list.map((chart) => (
+                <CompactRow key={chart.template.id} chart={chart} records={records} full={monthOf(chart)} index={charts.indexOf(chart)} />
+              ))}
+            </ul>
+          </section>
         </Fragment>
       ))}
       <p className="px-1 text-xs text-neutral-600">
-        Posledních {DAYS} dní, souhrny za {WEEK} dní. U hodnocení 1–5 je plná čára průměr za {WEEK} dní, tečky jsou jednotlivé dny. Přesná čísla najdeš v Historii.
+        Posledních {range} dní, souhrny za {WEEK} dní. U hodnocení 1–5 je plná čára průměr za {WEEK} dní, tečky jsou jednotlivé dny. Přesná čísla najdeš v Historii.
       </p>
     </div>
   );

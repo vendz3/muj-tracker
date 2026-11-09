@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import { api } from "./api.js";
-import { DIR_WORD, GOALS } from "./goals.js";
+import { DIR_WORD, GOALS, goalText } from "./goals.js";
+import { Switch } from "./Templates.jsx";
 import { card, input } from "./ui.js";
 
 // One goal field ("Cíl: aspoň [7] h"; calories: "Cíl [2200] ± [200] kcal"). Saves on blur / Enter,
 // not per keystroke; empty value removes the goal. Local state, so a save doesn't steal focus.
-function GoalInput({ meta, goal, onSave, onInvalid }) {
+function GoalInput({ meta, goal, off, onSave, onToggle, onInvalid }) {
   const [value, setValue] = useState(goal?.value ?? "");
   const [tol, setTol] = useState(goal?.tolerance ?? meta.defaultTolerance ?? "");
   const range = meta.dir === "range";
@@ -43,9 +44,16 @@ function GoalInput({ meta, goal, onSave, onInvalid }) {
   );
   const word = DIR_WORD[meta.dir];
   return (
-    <div className="space-y-1">
-      <p className="text-neutral-300">{meta.label}</p>
-      <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`text-xs font-medium uppercase tracking-wider ${goal ? "text-neutral-400" : "text-neutral-600"}`}>{meta.label}</p>
+          {!goal && <p className="text-xs text-neutral-600">vypnuto{off ? ` · naposledy ${goalText(off, meta.dir, meta.unit)}` : ""}</p>}
+        </div>
+        <Switch checked={!!goal} label={`Cíl ${meta.label}`} onChange={onToggle} />
+      </div>
+      {goal && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
         <span>Cíl{word ? `: ${word}` : ""}</span>
         {field(valueRef, value, setValue, `Cíl ${meta.label}`, "w-24", "–")}
         {range && (
@@ -58,7 +66,8 @@ function GoalInput({ meta, goal, onSave, onInvalid }) {
           {meta.unit}
           {meta.per ? ` ${meta.per}` : ""}
         </span>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -67,12 +76,22 @@ function GoalInput({ meta, goal, onSave, onInvalid }) {
 export default function GoalsSettings({ templates, onChange }) {
   const [error, setError] = useState("");
 
-  async function saveGoal(t, key, goal) {
+  // Switched-off goals move to config_json.goalsOff, so everything that reads `goals` ignores them and the value
+  // comes back when switched on again (first time: the metric's default).
+  async function saveGoal(t, key, goal, toggle) {
     const goals = { ...(t.config_json.goals ?? {}) };
-    if (goal) goals[key] = goal;
-    else delete goals[key];
+    const goalsOff = { ...(t.config_json.goalsOff ?? {}) };
+    if (toggle === "on") {
+      const meta = GOALS[t.type].find((m) => m.key === key);
+      goals[key] = goalsOff[key] ?? (meta.dir === "range" ? { value: meta.def, tolerance: meta.defaultTolerance } : { value: meta.def });
+      delete goalsOff[key];
+    } else if (toggle === "off") {
+      goalsOff[key] = goals[key];
+      delete goals[key];
+    } else if (goal) goals[key] = goal;
+    else delete goals[key]; // emptied field = off, nothing to keep
     try {
-      await api(`/templates/${t.id}`, "PUT", { is_active: t.is_active, config_json: { ...t.config_json, goals } });
+      await api(`/templates/${t.id}`, "PUT", { is_active: t.is_active, config_json: { ...t.config_json, goals, goalsOff } });
       setError("");
       onChange();
     } catch (e) {
@@ -88,16 +107,24 @@ export default function GoalsSettings({ templates, onChange }) {
   return (
     <section className="space-y-3">
       {error && (
-        <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
+        <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </p>
       )}
-      {rows.length === 0 && <p className="text-neutral-500">Nemáš zapnutou žádnou šablonu s měřitelnou metrikou.</p>}
+      {rows.length === 0 && <p className="text-neutral-500">Zatím nemáš co měřit. Zapni si v Šablonách třeba spánek nebo pitný režim.</p>}
       {rows.map(([t, metas]) => (
         <div key={t.id} className={`${card} space-y-3`}>
-          <h2 className="text-lg font-semibold">{t.name}</h2>
+          <h2 className="text-sm font-semibold">{t.name}</h2>
           {metas.map((meta) => (
-            <GoalInput key={meta.key} meta={meta} goal={t.config_json.goals?.[meta.key]} onSave={(g) => saveGoal(t, meta.key, g)} onInvalid={setError} />
+            <GoalInput
+              key={meta.key}
+              meta={meta}
+              goal={t.config_json.goals?.[meta.key]}
+              off={t.config_json.goalsOff?.[meta.key]}
+              onSave={(g) => saveGoal(t, meta.key, g)}
+              onToggle={(on) => saveGoal(t, meta.key, null, on ? "on" : "off")}
+              onInvalid={setError}
+            />
           ))}
         </div>
       ))}

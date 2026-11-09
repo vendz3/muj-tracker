@@ -34,35 +34,35 @@ export default function Backup() {
     reader.onload = async () => {
       try {
         const data = JSON.parse(reader.result);
-        if (!confirm("Import přepíše všechna současná data v tomto prohlížeči. Pokračovat?")) return;
+        if (!confirm("Obnovení ze zálohy přepíše všechno, co tu teď máš. Pokračovat?")) return;
         await importData(data);
         location.reload(); // App reloads records/templates on start
       } catch (err) {
-        setError(`Import selhal: ${err.message}`);
+        setError(`Obnovení selhalo: ${err.message}`);
       }
     };
-    reader.onerror = () => setError("Import selhal: soubor nejde přečíst");
+    reader.onerror = () => setError("Obnovení selhalo: soubor nejde přečíst");
     reader.readAsText(f);
   }
 
   async function onDemo() {
-    if (!confirm("Demo data přepíšou všechna současná data v tomto prohlížeči. Pokračovat?")) return;
+    if (!confirm("Ukázková data přepíšou všechno, co tu teď máš. Pokračovat?")) return;
     try {
       const { demoData } = await import("./demo.js"); // lazy: not in the main bundle
       await importData(demoData());
       location.reload();
     } catch (err) {
-      setError(`Načtení demo dat selhalo: ${err.message}`);
+      setError(`Ukázková data se nenačetla: ${err.message}`);
     }
   }
 
   const age = lastBackup && Math.floor((Date.now() - new Date(lastBackup)) / 864e5);
   const stale = !lastBackup || age > STALE_DAYS;
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <section className={`${card} space-y-3`}>
         <p className="text-neutral-400">
-          Data jsou uložená jen v tomto prohlížeči (localStorage). Smazáním dat prohlížeče o ně přijdeš, proto si pravidelně stahuj zálohu.
+          Tvoje data žijí jen v tomhle prohlížeči. Když ho vyčistíš, jsou pryč – proto si zálohu stahuj pravidelně.
         </p>
         <p className="text-sm text-neutral-300">
           {lastBackup
@@ -70,23 +70,23 @@ export default function Backup() {
             : "Zatím žádná záloha"}
         </p>
         {stale && (
-          <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
-            {lastBackup ? `Záloha je starší než ${STALE_DAYS} dní, stáhni si novou.` : "Ještě nemáš žádnou zálohu, stáhni si ji."}
+          <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            {lastBackup ? `Záloha je starší než ${STALE_DAYS} dní – stáhni si čerstvou.` : "Zatím nemáš žádnou zálohu. Jeden klik a máš klid."}
           </p>
         )}
         <button type="button" onClick={onExport} className={`${primary} flex w-full items-center justify-center gap-2`}>
-          <Download size={20} aria-hidden="true" /> Exportovat do JSON
+          <Download size={20} aria-hidden="true" /> Stáhnout zálohu
         </button>
         <button type="button" onClick={() => file.current.click()} className={`${secondary} flex w-full items-center justify-center gap-2`}>
-          <Upload size={20} aria-hidden="true" /> Importovat z JSON
+          <Upload size={20} aria-hidden="true" /> Obnovit ze zálohy
         </button>
         <button type="button" onClick={onDemo} className={`${secondary} flex w-full items-center justify-center gap-2`}>
-          <Sparkles size={20} aria-hidden="true" /> Načíst demo data
+          <Sparkles size={20} aria-hidden="true" /> Vyzkoušet na ukázkových datech
         </button>
         <input ref={file} type="file" accept="application/json,.json" onChange={onImport} className="hidden" aria-hidden="true" tabIndex={-1} />
       </section>
       {error && (
-        <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
+        <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </p>
       )}

@@ -1,34 +1,34 @@
 // Goals per template metric (stored in config_json.goals as { [key]: { value, tolerance? } }).
 // Direction is fixed per metric: "min" = at least, "max" = at most, "range" = value ± tolerance.
-// Limits mirror GOAL_LIMITS in main.py.
+// Limits mirror GOAL_LIMITS in main.py. def: the value a goal starts with when switched on for the first time.
 const g = (key, dir, label, unit, min, max, step, extra = {}) => ({ key, dir, label, unit, min, max, step, ...extra });
 
 export const GOALS = {
   sleep: [
-    g("sleep_hours", "min", "Čas spánku", "h", 0, 24, 0.5, { flag: "hours" }),
+    g("sleep_hours", "min", "Čas spánku", "h", 0, 24, 0.5, { flag: "hours", def: 7 }),
   ],
   // Weekly totals over the last 7 days (period "week"): shown as progress meters, not as a line over daily bars.
   sport: [
-    g("week_minutes", "min", "Pohyb", "min", 1, 10080, 10, { flag: "duration", rowKey: "_minutes", per: "týdně", period: "week" }),
-    g("week_activities", "min", "Aktivity", "", 1, 100, 1, { rowKey: "_count", per: "× týdně", period: "week" }),
+    g("week_minutes", "min", "Pohyb", "min", 1, 10080, 10, { flag: "duration", rowKey: "_minutes", per: "týdně", period: "week", def: 150 }),
+    g("week_activities", "min", "Aktivity", "", 1, 100, 1, { rowKey: "_count", per: "× týdně", period: "week", def: 3 }),
   ],
   food: [
-    g("calories", "range", "Kalorie", "kcal", 0, 20000, 50, { flag: "calories", defaultTolerance: 200 }),
+    g("calories", "range", "Kalorie", "kcal", 0, 20000, 50, { flag: "calories", defaultTolerance: 200, def: 2200 }),
     // Counts per day; "Alkohol ≤ 0" = alcohol-free days. Unit lives in the label (no Czech plurals needed).
-    g("drinks", "max", "Alkohol (drinky)", "", 0, 50, 1, { flag: "alcohol", per: "denně" }),
-    g("coffee", "max", "Kofein (šálky)", "", 0, 50, 1, { flag: "caffeine", per: "denně" }),
-    g("sweets", "max", "Sladkosti (porce)", "", 0, 50, 1, { flag: "sugar", per: "denně" }),
-    g("sugary_drinks", "max", "Slazené nápoje", "", 0, 50, 1, { flag: "sugary_drinks", per: "denně" }),
-    g("fast_food", "max", "Fast food (porce)", "", 0, 50, 1, { flag: "fast_food", per: "denně" }),
-    g("nicotine", "max", "Nikotin (dávky)", "", 0, 50, 1, { flag: "nicotine", per: "denně" }),
+    g("drinks", "max", "Alkohol (drinky)", "", 0, 50, 1, { flag: "alcohol", per: "denně", def: 0 }),
+    g("coffee", "max", "Kofein (šálky)", "", 0, 50, 1, { flag: "caffeine", per: "denně", def: 2 }),
+    g("sweets", "max", "Sladkosti (porce)", "", 0, 50, 1, { flag: "sugar", per: "denně", def: 1 }),
+    g("sugary_drinks", "max", "Slazené nápoje", "", 0, 50, 1, { flag: "sugary_drinks", per: "denně", def: 0 }),
+    g("fast_food", "max", "Fast food (porce)", "", 0, 50, 1, { flag: "fast_food", per: "denně", def: 0 }),
+    g("nicotine", "max", "Nikotin (dávky)", "", 0, 50, 1, { flag: "nicotine", per: "denně", def: 0 }),
   ],
-  water: [g("liters", "min", "Pitný režim", "l", 0, 20, 0.25, { per: "denně" })],
+  water: [g("liters", "min", "Pitný režim", "l", 0, 20, 0.25, { per: "denně", def: 2 })],
   reading: [
-    g("minutes", "min", "Čtení", "min", 1, 1440, 5, { flag: "minutes", per: "denně" }),
-    g("pages", "min", "Stránky", "str.", 1, 5000, 1, { flag: "pages", per: "denně" }),
+    g("minutes", "min", "Čtení", "min", 1, 1440, 5, { flag: "minutes", per: "denně", def: 20 }),
+    g("pages", "min", "Stránky", "str.", 1, 5000, 1, { flag: "pages", per: "denně", def: 10 }),
   ],
-  meditation: [g("minutes", "min", "Meditace", "min", 1, 1440, 1, { per: "denně" })],
-  screen_time: [g("minutes", "max", "Screen time", "min", 1, 1440, 5, { per: "denně" })],
+  meditation: [g("minutes", "min", "Meditace", "min", 1, 1440, 1, { per: "denně", def: 10 })],
+  screen_time: [g("minutes", "max", "Screen time", "min", 1, 1440, 5, { per: "denně", def: 120 })],
 };
 
 export const DIR_WORD = { min: "aspoň", max: "nejvýš", range: "" };
