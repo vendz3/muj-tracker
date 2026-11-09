@@ -22,11 +22,11 @@ export const THEMES = [
     accentStrong: "#4D6B57", accentText: "#4D6B57", onAccent: "#FFFFFF", accent2Text: "#475569",
   },
   {
-    id: "prism", name: "Vibrant Prism", description: "Hluboká noční fialová a zářivé barvy duhy. Grafy, které hrají.", dark: true,
-    bg: "#110D22", card: "#1B1633", text: "#F5F3FF", accent: "#FF5E9C", accent2: "#4ECDC4", line: "#2D2650",
-    accentStrong: "#FF5E9C", accentText: "#FF8DB8", onAccent: "#14102A", accent2Text: "#4ECDC4",
-    // Optional extras: chart = palette cycled per chart card, fill = button gradient, glow = hover shadow.
-    chart: ["#4ECDC4", "#FF6B6B", "#FFE66D", "#C56CF0", "#32FF7E", "#5DADFF"],
+    id: "prism", name: "Vibrant Prism", description: "Světlý čistý podklad a zářivé barvy duhy. Grafy, které hrají.", dark: false,
+    bg: "#F6F7FB", card: "#FFFFFF", text: "#1E1B2E", accent: "#FF5E9C", accent2: "#0EA5A4", line: "#ECEAF3",
+    accentStrong: "#FF5E9C", accentText: "#DB2777", onAccent: "#1E1B2E", accent2Text: "#0F766E",
+    // Optional extras: chart = palette cycled per chart card (each >= 3:1 on white), fill = button gradient, glow = hover shadow.
+    chart: ["#0EA5A4", "#F43F5E", "#D97706", "#9333EA", "#16A34A", "#2563EB"],
     fill: "linear-gradient(135deg, #FF5E9C, #FF9F43)", glow: "#FF5E9C80",
   },
 ];
