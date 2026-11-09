@@ -83,6 +83,8 @@ function goalHint(t, key) {
     .map((m) => goalText(t.config_json.goals[m.key], m.dir, m.unit) + (m.per && m.period === "week" ? ` ${m.per}` : ""));
   return parts.length ? <span className="block text-sm text-neutral-500">Cíl: {parts.join(" · ")}</span> : null;
 }
+// iOS Safari draws native date / time fields wider than the card (and centred); flatten them so w-full holds.
+const dateTime = "block min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left";
 const empty = (f) => (f.kind === "number" || f.kind === "text" || f.kind === "time" ? "" : null);
 const filled = (v, f) => v[f.needs] != null && v[f.needs] !== "";
 const toValue = (f, v) => (f.kind === "number" ? Number(v) : f.kind === "text" ? v.trim() : v);
@@ -420,7 +422,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 <span className="mb-1 block text-neutral-400">
                   {f.label} {f.hint && <span className="text-sm text-neutral-500">({f.hint})</span>}
                 </span>
-                <input type="time" value={v[f.key]} onChange={(e) => setField(f.key, e.target.value)} className={`${input} w-full`} />
+                <input type="time" value={v[f.key]} onChange={(e) => setField(f.key, e.target.value)} className={`${input} ${dateTime} w-full`} />
               </label>
             ) : f.kind === "text" ? (
               <label key={f.key} className="block">
@@ -474,7 +476,9 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       role="dialog"
       aria-modal="true"
       aria-labelledby="entry-title"
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-neutral-950 motion-safe:animate-slide-up"
+      // Vertical scrolling only: overflow-y alone makes overflow-x "auto" too, and iOS Safari then lets a slightly
+      // diagonal thumb scroll rubber-band the form sideways. pan-y keeps the gesture vertical (sliders still drag).
+      className="fixed inset-0 z-50 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain bg-neutral-950 motion-safe:animate-slide-up"
     >
       <div className="mx-auto min-h-full w-full max-w-md">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950/95 px-4 py-2 backdrop-blur">
@@ -497,7 +501,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
             <label htmlFor="entry-date" className="mb-2 block text-lg font-semibold">
               Den
             </label>
-            <input id="entry-date" type="date" max={today} value={date} onChange={(e) => changeDate(e.target.value)} className={`${input} w-full`} />
+            <input id="entry-date" type="date" max={today} value={date} onChange={(e) => changeDate(e.target.value)} className={`${input} ${dateTime} w-full`} />
           </section>
           {sections.map((t) => (
             <section key={t.id} aria-labelledby={`entry-${t.id}`} className={card}>
