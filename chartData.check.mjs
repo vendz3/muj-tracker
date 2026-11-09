@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, shiftClock, fmtHM, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
+import { METRICS, activities, shiftClock, fmtHM, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -172,10 +172,6 @@ const w = weekDays(recs, 0, today);
 assert(w.length === 7 && w[0].date === "2026-11-05" && w[6].date === "2026-11-11", "last 7 days ending today");
 assert(w[5].record === recs[1] && w[6].record === null, "records by date");
 assert(weekDays(recs, -1, today)[0].date === "2026-10-29" && weekDays(recs, -1, today)[6].date === "2026-11-04", "the 7 days before");
-// 7-day rolling average: needs 3 filled values, skips gaps.
-const ma = withRollingAvg([1, 5, null, 3, 4, null, null, null, null, null].map((v) => ({ v })), ["v"]).map((r) => r.v_ma);
-assert.deepEqual(ma.slice(0, 5), [null, null, null, 3, 3.25]);
-assert.equal(ma[9], null); // rows 3..9 hold only 3 and 4: two values < 3
 
 const order = entryOrder([{ id: 13, type: "stress" }, { id: 2, type: "sport" }, { id: 1, type: "sleep" }]).map((t) => t.id);
 assert(order.join() === "13,1,2", "stress first, then by id");

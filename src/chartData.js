@@ -176,19 +176,6 @@ export function fillMealGap(rows, data, days, templates) {
 // X-axis ticks every 7 days ending with the last row, so every chart in a card shows the same dates.
 export const weeklyTicks = (rows) => rows.filter((_, i) => (rows.length - 1 - i) % WEEK === 0).map((r) => r.date);
 
-// Adds `${key}_ma` = average of the last `n` rows' values (needs >= minN filled), the readable trend under noisy
-// daily 1–5 scores. Rows are copied, the input is not touched.
-export function withRollingAvg(rows, keys, n = WEEK, minN = 3) {
-  return rows.map((r, i) => {
-    const out = { ...r };
-    for (const k of keys) {
-      const xs = rows.slice(Math.max(0, i - n + 1), i + 1).map((x) => x[k]).filter((v) => v != null);
-      out[`${k}_ma`] = xs.length >= minN ? sum(xs) / xs.length : null;
-    }
-    return out;
-  });
-}
-
 // Every calendar day from the first record in the window to today, so a missing day is a gap, not a jump.
 export function lastDays(records, today = new Date(), n = DAYS) {
   const start = new Date(today);

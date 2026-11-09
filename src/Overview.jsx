@@ -4,7 +4,7 @@ import { GOOD, WEEK, goalReport, lastDays, templateCharts, weekSummary } from ".
 import { goalText, meets } from "./goals.js";
 import { MIN_N, insights } from "./insights.js";
 import { MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
-import { card, primary, secondary } from "./ui.js";
+import { card, cardDesc, cardTitle, primary, secondary } from "./ui.js";
 
 // Overview = the last 7 days at a glance (rolling window, same for every goal). Details live in Grafy.
 const num = (n) => n.toLocaleString("cs-CZ", { maximumFractionDigits: 1 });
@@ -36,9 +36,10 @@ function TodayCard({ today, items, onEdit }) {
   if (!today)
     return (
       <section className={`${card} p-4`}>
-        <p className={caption}>Dnešek · {date}</p>
-        <p className="mt-1 text-base font-semibold text-neutral-100">Ještě nezapsáno</p>
-        <p className="text-sm text-neutral-400">Pár ťuknutí a máš hotovo.</p>
+        <h2 className={cardTitle}>
+          Dnešek <span className="font-normal text-neutral-500">· {date}</span>
+        </h2>
+        <p className="text-sm text-neutral-400">Ještě nemáš zapsáno. Pár ťuknutí a máš hotovo.</p>
         <button type="button" onClick={() => onEdit({ date: iso })} className={`${primary} mt-3 w-full text-base`}>
           Zapsat dnešek
         </button>
@@ -62,15 +63,19 @@ function TodayCard({ today, items, onEdit }) {
           {MOODS[today.mood_score - 1]}
         </span>
         <div className="min-w-0 flex-1">
-          <p className={caption}>Dnešek · {date}</p>
-          <p className="text-lg font-semibold text-neutral-100">Nálada: {MOOD_LABELS[today.mood_score - 1].toLowerCase()}</p>
+          <h2 className={cardTitle}>
+            Dnešek <span className="font-normal text-neutral-500">· {date}</span>
+          </h2>
+          <p className="text-sm text-neutral-300">Nálada: {MOOD_LABELS[today.mood_score - 1].toLowerCase()}</p>
         </div>
         <button type="button" onClick={() => onEdit(today)} className={`${secondary} shrink-0`}>
           Upravit
         </button>
       </div>
       {badges.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Dnešní cíle">
+        <>
+        <p className={`mt-3 mb-1.5 ${caption}`}>Dnešní cíle</p>
+        <ul className="flex flex-wrap gap-1.5" aria-label="Dnešní cíle">
           {badges.map((b) => {
             const I = Icon[b.ok];
             return (
@@ -82,6 +87,7 @@ function TodayCard({ today, items, onEdit }) {
             );
           })}
         </ul>
+        </>
       )}
     </section>
   );
@@ -90,12 +96,16 @@ function TodayCard({ today, items, onEdit }) {
 // "Tvé vzorce": what lines up with better or worse mood (insights.js). Arrow + word carry the direction, not color alone.
 function PatternsCard({ records, templates }) {
   const found = insights(records, templates);
-  return (
-    <section className={card}>
-      <h2 className={`mb-2 ${caption}`}>Tvé vzorce</h2>
-      {found.length ? (
-        <>
-          <ul className="space-y-2">
+  if (found.length)
+    return (
+      <details className={`${card} group`}>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+          <h2 className={`${cardTitle} mb-0 flex-1`}>Tvé vzorce</h2>
+          <span className="text-xs text-neutral-500">{found.length} zjištění</span>
+          <ChevronRight size={18} className="text-neutral-500 transition-transform group-open:rotate-90" aria-hidden="true" />
+        </summary>
+        <p className={`mb-2 ${cardDesc}`}>Co souvisí s lepší a horší náladou · posledních 90 dní</p>
+        <ul className="space-y-2">
             {found.map((x) => (
               <li key={x.id} className="flex gap-2 text-sm text-neutral-200">
                 <span className={`font-semibold ${x.diff > 0 ? "text-accent2-text" : "text-red-400"}`} aria-hidden="true">
@@ -105,14 +115,16 @@ function PatternsCard({ records, templates }) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-neutral-500">Souvislost, ne důkaz příčiny.</p>
-        </>
-      ) : (
-        <p className="text-sm text-neutral-400">
-          Vzorce se ukážou, až budeš mít aspoň {MIN_N} dní s danou věcí i bez ní. Zatím {records.length} {records.length === 1 ? "záznam" : records.length >= 2 && records.length <= 4 ? "záznamy" : "záznamů"}.
-          {records.length < 10 && <span className="block text-xs text-neutral-500">Chceš to vidět hned? Načti ukázková data v Nastavení → Záloha.</span>}
-        </p>
-      )}
+        <p className="mt-2 text-xs text-neutral-500">Souvislost, ne důkaz příčiny.</p>
+      </details>
+    );
+  return (
+    <section className={card}>
+      <h2 className={cardTitle}>Tvé vzorce</h2>
+      <p className="text-sm text-neutral-400">
+        Vzorce se ukážou, až budeš mít aspoň {MIN_N} dní s danou věcí i bez ní. Zatím {records.length} {records.length === 1 ? "záznam" : records.length >= 2 && records.length <= 4 ? "záznamy" : "záznamů"}.
+        {records.length < 10 && <span className="block text-xs text-neutral-500">Chceš to vidět hned? Načti ukázková data v Nastavení → Záloha.</span>}
+      </p>
     </section>
   );
 }
@@ -162,28 +174,36 @@ function SummaryCard({ records, report, dates, onEdit }) {
   const filled = dates.filter((d) => byDate[d]).length;
   const { score, trend, good, total } = report;
   const thin = filled < 4; // a score from 1–3 days is noise, not a signal: show it neutral
+  // Headline: the goal that moved up most vs last week, else the best-met one.
+  const rated = report.items.filter((i) => i.rate != null);
+  const up = rated.filter((i) => i.prev != null && i.rate - i.prev > 0.005).sort((a, b) => b.rate - b.prev - (a.rate - a.prev))[0];
+  const top = [...rated].sort((a, b) => b.rate - a.rate)[0];
+  const headline = thin ? "Zatím málo dat" : up ? `Největší posun: ${up.info.label} ↑` : top ? `Nejvíc ti jde: ${top.info.label}` : `Plnění cílů za ${WEEK} dní`;
   return (
     <section className={card}>
-      <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-neutral-500">Posledních {WEEK} dní</h2>
+      <h2 className={cardTitle}>Tvůj týden</h2>
+      <p className={`mb-3 ${cardDesc}`}>Posledních {WEEK} dní: jak plníš cíle a jaká byla nálada</p>
       {score != null && (
         <div className="mb-3 flex items-center gap-4">
           <div className="relative size-24 shrink-0" role="img" aria-label={`Plnění cílů ${pct(score)}`}>
             <svg viewBox="0 0 150 150" className="size-full" aria-hidden="true">
               <Ring r={66} frac={score} width={16} color={thin ? "var(--color-neutral-600)" : score >= GOOD ? "var(--color-accent2)" : "var(--color-accent-500)"} />
             </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-lg font-semibold tabular-nums text-neutral-50" aria-hidden="true">
-              {pct(score)}
+            <span className="absolute inset-0 flex flex-col items-center justify-center leading-tight" aria-hidden="true">
+              <span className="text-lg font-semibold tabular-nums text-neutral-50">{pct(score)}</span>
+              <span className="text-[10px] tracking-wider text-neutral-500 uppercase">cílů</span>
             </span>
           </div>
           <div className="min-w-0">
             <p className="text-base leading-tight font-semibold text-neutral-100">
-              {thin ? "Zatím málo dat" : trend == null ? `Plnění cílů za ${WEEK} dní` : `${change(trend, pct, 0.005)} oproti minulému týdnu`}
+              {headline}
             </p>
             <p className="text-sm text-neutral-300">
               {good} z {total} {total === 1 ? "cíle" : "cílů"} se daří
             </p>
             <p className="text-xs text-neutral-400">
               vyplněno {filled}/{WEEK} dní
+              {trend != null && !thin && ` · ${change(trend, pct, 0.005)} vs minulý týden`}
             </p>
           </div>
         </div>
@@ -206,6 +226,7 @@ function SummaryCard({ records, report, dates, onEdit }) {
         )}
       </div>
       <MoodWeek dates={dates} byDate={byDate} onEdit={onEdit} />
+      <p className={`mt-1.5 ${cardDesc}`}>Nálada po dnech · ťukni na den a doplníš ho</p>
     </section>
   );
 }
@@ -280,7 +301,8 @@ function GoalsCard({ items, dates, onNavigate }) {
   if (!items.length)
     return (
       <div className={card}>
-        <p className="text-neutral-400">Nastav si cíle a tady hned uvidíš, jak se ti daří.</p>
+        <h2 className={cardTitle}>Cíle</h2>
+        <p className="text-sm text-neutral-400">Nastav si cíle a tady hned uvidíš, jak se ti daří.</p>
         <button type="button" onClick={() => onNavigate("goals")} className="mt-3 min-h-11 rounded-xl border border-line bg-neutral-900 px-4 text-sm font-medium text-neutral-200 hover:bg-neutral-800">
           Nastavit cíle
         </button>
@@ -288,7 +310,14 @@ function GoalsCard({ items, dates, onNavigate }) {
     );
   return (
     <section className={card}>
-      <h2 className="mb-1 text-xs font-medium uppercase tracking-wider text-neutral-500">Cíle</h2>
+      <h2 className={cardTitle}>Cíle</h2>
+      <p className={cardDesc}>Plnění za posledních {WEEK} dní · nahoře ty, které potřebují pozornost</p>
+      {/* Legend for the day dots in DayGoalRow (same shapes). */}
+      <p className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${cardDesc}`} aria-hidden="true">
+        <span className="flex items-center gap-1"><span className="size-2.5 rounded-full bg-accent2" /> splněno</span>
+        <span className="flex items-center gap-1"><span className="size-2.5 rounded-full ring-2 ring-neutral-600 ring-inset" /> nesplněno</span>
+        <span className="flex items-center gap-1"><span className="size-1 rounded-full bg-neutral-700" /> nevyplněno</span>
+      </p>
       <ul className="divide-y divide-line">
         {items.map((item) => (
           <li key={`${item.info.rowKey}-${item.info.key}-${item.info.label}`} className="py-3 last:pb-0">

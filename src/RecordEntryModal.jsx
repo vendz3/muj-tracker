@@ -682,7 +682,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
             {g.templates.map((t) => (
             <section key={t.id} aria-labelledby={`entry-${t.id}`} className={card}>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 id={`entry-${t.id}`} className="text-sm font-semibold">
+                <h3 id={`entry-${t.id}`} className="text-base font-semibold">
                   {t.name}
                 </h3>
                 {/* Routine days: copy yesterday's answer for this section (gratitude is meant to be fresh each day). */}

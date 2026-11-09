@@ -205,7 +205,7 @@ export default function Templates({ templates, onChange }) {
                   aria-hidden="true"
                   className={`shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180 text-accent-400" : ""}`}
                 />
-                <span className={`text-sm font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
+                <span className={`text-base font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
               </button>
               <Switch checked={t.is_active} label={t.name} onChange={(on) => update(t, { is_active: on })} />
             </div>

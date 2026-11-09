@@ -20,13 +20,15 @@ const dayBefore = (iso) => {
   return d.toLocaleDateString("sv-SE");
 };
 
-// Settings sub-pages: [screen, title, icon, description]
+// Settings sub-pages: [screen, title, icon, description in the menu, intro under the page title]
 const SETTINGS_MENU = [
-  ["templates", "Šablony", LayoutTemplate, "Co všechno chceš sledovat"],
-  ["goals", "Cíle", Target, "Kam to chceš dotáhnout"],
-  ["theme", "Motiv", Palette, "Jak má appka vypadat"],
-  ["backup", "Záloha", DatabaseBackup, "Ať o nic nepřijdeš"],
+  ["templates", "Šablony", LayoutTemplate, "Co všechno chceš sledovat", "Zapni, co chceš každý den zapisovat. Ťukni na název a nastavíš podrobnosti."],
+  ["goals", "Cíle", Target, "Kam to chceš dotáhnout", "Zapni cíle, které chceš plnit. Na Přehledu pak uvidíš, jak se ti daří."],
+  ["theme", "Motiv", Palette, "Jak má appka vypadat", "Vyber barvy celé aplikace. Změna platí hned."],
+  ["backup", "Záloha", DatabaseBackup, "Ať o nic nepřijdeš", ""],
 ];
+// Intro under the title of the main screens (the overview speaks for itself).
+const INTRO = { charts: "Jak se tvoje hodnoty vyvíjejí v čase.", records: "Všechny zapsané dny, nejnovější nahoře.", settings: "Co sleduješ, tvoje cíle, vzhled a záloha dat." };
 
 export default function App() {
   const [screen, setScreen] = useState("overview"); // overview | charts | records | settings | templates | goals | theme | backup
@@ -71,11 +73,17 @@ export default function App() {
           >
             <ChevronLeft size={22} aria-hidden="true" />
           </button>
-          <h1 className="text-lg font-semibold tracking-tight">{sub ? sub[1] : "Nastavení"}</h1>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">{sub ? sub[1] : "Nastavení"}</h1>
+            {(sub ? sub[4] : INTRO.settings) && <p className="text-xs text-neutral-500">{sub ? sub[4] : INTRO.settings}</p>}
+          </div>
         </header>
       ) : (
         <header className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Historie"}</h1>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Historie"}</h1>
+            {INTRO[screen] && <p className="text-xs text-neutral-500">{INTRO[screen]}</p>}
+          </div>
           <span className="flex items-center gap-1">
             {screen === "overview" && !error && (
               // Days in a row with a record; lit while the streak is alive.

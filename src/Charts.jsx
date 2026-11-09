@@ -2,10 +2,10 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, NAP_SHORT, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./chartData.js";
+import { DAYS, NAP_SHORT, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { SECTIONS, sectionTitle } from "./sections.js";
-import { card } from "./ui.js";
+import { card, cardDesc, cardTitle } from "./ui.js";
 
 // Chart colors = CSS variables of the active theme (themes.js themeVars), so switching themes repaints the
 // charts with no re-render. Series 3/4 use the theme's own extra hues (chart3/chart4), always readable on the card.
@@ -39,12 +39,10 @@ function ChartTooltip({ active, payload, label, series }) {
       {items.length === 0 && <p className="text-neutral-500">{row._minutes === 0 ? "Bez sportu" : "Nevyplněno"}</p>}
       {items.map((s) => {
         const v = payload[0].payload[s.key];
-        const ma = row[`${s.key}_ma`];
         return (
           <p key={s.key} className="flex items-center gap-2 text-neutral-100">
             <span className="size-2.5 shrink-0 rounded-full" style={{ background: paint(c, s.color) }} aria-hidden="true" />
             {s.label}: <b className="font-semibold">{s.format ? s.format(v, payload[0].payload) : `${num(v)}${s.unit ? ` ${s.unit}` : ""}`}</b>
-            {ma != null && <span className="text-neutral-400">· Ø 7 dní {num(ma)}</span>}
           </p>
         );
       })}
@@ -114,15 +112,11 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
   const clockVals = isClock ? rows.flatMap((r) => series.map((s) => r[s.key])).filter((v) => v != null) : [];
   const lo = Math.floor(Math.min(...clockVals)), hi = Math.max(Math.ceil(Math.max(...clockVals)), Math.floor(Math.min(...clockVals)) + 1);
   const clockTicks = isClock && clockVals.length ? Array.from({ length: Math.floor((hi - lo) / (hi - lo > 4 ? 2 : 1)) + 1 }, (_, i) => lo + i * (hi - lo > 4 ? 2 : 1)) : undefined;
-  // Daily 1–5 scores zigzag; a 7-day rolling average carries the trend, the daily points stay as faint context.
-  // Only for dense series (filled on >= half the days): over sparse data (naps) the average breaks into fragments.
-  const trend = isScore && !week && series.every((s) => rows.filter((r) => r[s.key] != null).length >= rows.length / 2);
-  const data = trend ? withRollingAvg(rows, series.map((s) => s.key)) : rows;
   return (
     <div role="img" aria-label={label} style={{ height }} className="w-full">
       <ResponsiveContainer>
         {/* right: room for the last date label ("9. 11."), which sits on the right edge. */}
-        <ComposedChart data={data} margin={{ top: compact ? 6 : 8, right: 14, bottom: showXAxis ? 0 : 6, left: isClock ? -12 : -24 }}>
+        <ComposedChart data={rows} margin={{ top: compact ? 6 : 8, right: 14, bottom: showXAxis ? 0 : 6, left: isClock ? -12 : -24 }}>
           <CartesianGrid stroke={c.grid} vertical={false} />
           {/* Same weekly dates on every chart of a card (big charts and small rows alike). */}
           <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} ticks={week ? undefined : weeklyTicks(rows)} interval={0} hide={!showXAxis} />
@@ -159,12 +153,11 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
                 key={s.key}
                 dataKey={s.key}
                 name={s.label}
-                type="linear" // daily 1–5 scores: straight segments, no invented in-between values
+                type="monotone" // smooth curve through the exact daily values, no overshoot past them
                 stroke={paint(c, s.color)}
-                strokeWidth={trend ? 1 : 2}
-                strokeOpacity={trend ? 0.35 : 1}
+                strokeWidth={2}
                 connectNulls={false}
-                dot={trend ? { r: 2.5, fill: paint(c, s.color), fillOpacity: 0.5, strokeWidth: 0 } : { r: 4, fill: paint(c, s.color), stroke: c.surface, strokeWidth: 2 }}
+                dot={{ r: 4, fill: paint(c, s.color), stroke: c.surface, strokeWidth: 2 }}
                 activeDot={{ r: 5, stroke: c.surface, strokeWidth: 2 }}
                 isAnimationActive={false}
               />
@@ -184,21 +177,6 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
               />
             ),
           )}
-          {trend &&
-            series.map((s) => (
-              <Line
-                key={`${s.key}_ma`}
-                dataKey={`${s.key}_ma`}
-                name={`${s.label} (Ø 7 dní)`}
-                legendType="none"
-                type="monotone"
-                stroke={paint(c, s.color)}
-                strokeWidth={compact ? 2 : 3}
-                dot={false}
-                activeDot={false}
-                isAnimationActive={false}
-              />
-            ))}
           {/* "≤ 0" (e.g. no alcohol) would sit on the x axis and vanish into it: the text status carries it. */}
           {g && goal.dir !== "range" && !(goal.dir === "max" && g.value === 0) && (
             <ReferenceLine y={g.value} stroke={c.goalInk} strokeWidth={1} strokeDasharray="4 3" />
@@ -290,7 +268,7 @@ export function WeekGoal({ info }) {
 function CardHeader({ title, summary, aside }) {
   return (
     <div className="mb-2 flex items-start justify-between gap-3">
-      <h2 className="pt-0.5 text-xs font-medium uppercase tracking-wider text-neutral-500">{title}</h2>
+      <h2 className={cardTitle}>{title}</h2>
       {aside ?? <Summary summary={summary} />}
     </div>
   );
@@ -815,13 +793,19 @@ export default function Dashboard({ records, templates }) {
   }
   const monthOf = (chart) => full.find((c) => c.template.id === chart.template.id) ?? chart;
   // Section heading before the first card of each section (same sections and order as the day entry).
-  const heading = (title) => <h2 className="px-1 pt-2 text-xs font-medium tracking-wider text-neutral-500 uppercase">{title}</h2>;
+  const heading = (title, desc) => (
+    <div className="px-1 pt-2">
+      <h2 className="text-xs font-medium tracking-wider text-neutral-500 uppercase">{title}</h2>
+      {desc && <p className={cardDesc}>{desc}</p>}
+    </div>
+  );
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-neutral-400">Období grafů</p>
         <Segmented value={range} onChange={setRange} label="Délka grafů" options={RANGES} />
       </div>
-      {heading("Hlavní")}
+      {heading("Hlavní metriky", "Nálada a tvoje nejdůležitější oblasti v detailu")}
       <section className={card}>
         <CardHeader title="Vývoj nálady" summary={moodSummary && { ...moodSummary, mode: "avg", unit: "" }} />
         <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${moodRows.length} dní`} />
@@ -832,9 +816,9 @@ export default function Dashboard({ records, templates }) {
         </section>
       ))}
       {/* Everything else: one compact card per section (same sections and order as the day entry). */}
-      {sections.map(([title, list]) => (
+      {sections.map(([title, list], i) => (
         <Fragment key={title}>
-          {heading(title)}
+          {heading(title, i === 0 && "Ostatní metriky: vývoj a průměr za 7 dní · ťukni na řádek pro celý graf")}
           <section className={`${card} py-1`}>
             <ul className="divide-y divide-line">
               {list.map((chart) => (

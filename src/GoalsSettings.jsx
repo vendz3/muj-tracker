@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { api } from "./api.js";
 import { DIR_WORD, GOALS, goalText } from "./goals.js";
 import { Switch } from "./Templates.jsx";
-import { card, input } from "./ui.js";
+import { card, cardTitle, input } from "./ui.js";
 
 // One goal field ("Cíl: aspoň [7] h"; calories: "Cíl [2200] ± [200] kcal"). Saves on blur / Enter,
 // not per keystroke; empty value removes the goal. Local state, so a save doesn't steal focus.
@@ -114,7 +114,7 @@ export default function GoalsSettings({ templates, onChange }) {
       {rows.length === 0 && <p className="text-neutral-500">Zatím nemáš co měřit. Zapni si v Šablonách třeba spánek nebo pitný režim.</p>}
       {rows.map(([t, metas]) => (
         <div key={t.id} className={`${card} space-y-3`}>
-          <h2 className="text-sm font-semibold">{t.name}</h2>
+          <h2 className={cardTitle}>{t.name}</h2>
           {metas.map((meta) => (
             <GoalInput
               key={meta.key}
