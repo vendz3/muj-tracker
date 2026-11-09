@@ -5,6 +5,8 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   base: "/muj-tracker/", // GitHub Pages repo name
+  // Build time (UTC) shown in Nastavení, to tell on the phone which version is running.
+  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ")) },
   plugins: [
     react(),
     tailwindcss(),

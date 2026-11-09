@@ -136,6 +136,7 @@ export default function App() {
               </button>
             </li>
           ))}
+          <li className="pt-2 text-center text-xs text-neutral-600">Verze {__BUILD__}</li>
         </ul>
       )}
 
