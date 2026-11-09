@@ -1,8 +1,8 @@
 import { Copy, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Rating from "./Rating.jsx";
 import { api } from "./api.js";
-import { entryOrder } from "./chartData.js";
+import { SECTIONS, groupTemplates } from "./sections.js";
 import { GOALS, goalText } from "./goals.js";
 import { card, checkRow, checkbox, input, primary } from "./ui.js";
 
@@ -206,8 +206,12 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Stress right after mood (entryOrder): both are "how was the day" at a glance. The dashboard uses the same order.
-  const sections = [{ id: "mood", type: "mood", name: "Nálada" }, ...entryOrder(active)];
+  // Sections in the shared order (sections.js), mood on top of the first one ("Jak ti dnes bylo"). Charts use the same.
+  const MOOD = { id: "mood", type: "mood", name: "Nálada" };
+  const grouped = groupTemplates(active);
+  const groups = grouped[0]?.title === SECTIONS[0].title
+    ? [{ ...grouped[0], templates: [MOOD, ...grouped[0].templates] }, ...grouped.slice(1)]
+    : [{ title: SECTIONS[0].title, templates: [MOOD] }, ...grouped];
   const set = (id, value) => setState((s) => ({ ...s, [id]: value }));
 
   // The modal owns one history entry: X, Escape and the system Back button all leave through popstate,
@@ -503,7 +507,10 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
             </label>
             <input id="entry-date" type="date" max={today} value={date} onChange={(e) => changeDate(e.target.value)} className={`${input} ${dateTime} w-full`} />
           </section>
-          {sections.map((t) => (
+          {groups.map((g) => (
+            <Fragment key={g.title}>
+            <h2 className="-mb-3 px-1 pt-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{g.title}</h2>
+            {g.templates.map((t) => (
             <section key={t.id} aria-labelledby={`entry-${t.id}`} className={card}>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 id={`entry-${t.id}`} className="text-lg font-semibold">
@@ -522,6 +529,8 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
               </div>
               {body(t)}
             </section>
+            ))}
+            </Fragment>
           ))}
 
           <section className={card}>

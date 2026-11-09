@@ -1,9 +1,10 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
 import { DAYS, NAP_SHORT, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
+import { SECTIONS, sectionTitle } from "./sections.js";
 import { card } from "./ui.js";
 
 // Chart colors = CSS variables of the active theme (themes.js themeVars), so switching themes repaints the
@@ -700,14 +701,19 @@ export default function Dashboard({ records, templates }) {
   const charts = templateCharts(days, templates);
   if (records.length < 2) return <p className="text-neutral-400">Grafy se zobrazí, až budeš mít aspoň 2 záznamy.</p>;
   const moodSummary = weekSummary(moodRows, "mood");
+  // Section heading before the first card of each section (same sections and order as the day entry).
+  const heading = (title) => <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{title}</h2>;
   return (
     <div className="space-y-4">
+      {heading(SECTIONS[0].title)}
       <section className={card}>
         <CardHeader title="Vývoj nálady" summary={moodSummary && { ...moodSummary, mode: "avg", unit: "" }} />
         <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${DAYS} dní`} />
       </section>
       {charts.map((chart, i) => (
-        <section key={chart.template.id} className={card} style={cycleVars(i)}>
+        <Fragment key={chart.template.id}>
+        {sectionTitle(chart.template.type) !== (i ? sectionTitle(charts[i - 1].template.type) : SECTIONS[0].title) && heading(sectionTitle(chart.template.type))}
+        <section className={card} style={cycleVars(i)}>
           {chart.template.type === "sport" ? (
             <SportCard month={chart} records={records} />
           ) : (
@@ -725,6 +731,7 @@ export default function Dashboard({ records, templates }) {
             </>
           )}
         </section>
+        </Fragment>
       ))}
       <p className="px-1 text-xs text-neutral-600">
         Posledních {DAYS} dní, souhrny za {WEEK} dní. U hodnocení 1–5 je plná čára průměr za {WEEK} dní, tečky jsou jednotlivé dny. Přesná čísla najdeš v Historii.

@@ -1,5 +1,6 @@
 // Pure data shaping for dashboard charts (no React), so it can be checked with plain node.
 import { GOALS, goalStatus } from "./goals.js";
+import { entryOrder } from "./sections.js";
 export const DAYS = 30; // charts show the last 30 calendar days
 export const WEEK = 7; // card summaries: last 7 days vs the 7 before
 
@@ -109,12 +110,8 @@ export function trainingLoad(days, t) {
 
 const iso = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
-// Order of the day entry (RecordEntryModal): stress and "Hlava" right after mood (how was the day), then by id.
-const FIRST = ["stress", "mind"];
-export const entryOrder = (ts) => {
-  const byId = [...ts].sort((a, b) => a.id - b.id);
-  return [...FIRST.flatMap((type) => byId.filter((t) => t.type === type)), ...byId.filter((t) => !FIRST.includes(t.type))];
-};
+// Card order = the shared section order (sections.js), same as the day entry and settings.
+export { entryOrder } from "./sections.js";
 
 // 7 days ending today (offset 0), or the 7-day windows before it (offset -1, -2…): rolling like the rest of the app,
 // so the sport week is never empty on a Monday.

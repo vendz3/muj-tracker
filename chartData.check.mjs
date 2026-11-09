@@ -24,7 +24,7 @@ assert.deepEqual(days.map((d) => d.date), ["2026-11-04", "2026-11-05", "2026-11-
 assert.equal(days[1].record, null);
 
 const cards = Object.fromEntries(templateCharts(days, T).map((c) => [c.template.type, c]));
-assert.deepEqual(Object.keys(cards), ["sleep", "sport", "food"]);
+assert.deepEqual(Object.keys(cards), ["sleep", "food", "sport"]);
 
 const col = (type, scale, key) => cards[type].groups.find((g) => g.scale === scale).rows.map((r) => r[key]);
 // Sleep only filled on the 7th: nulls elsewhere (gaps), no throw on the empty / missing days.
@@ -261,3 +261,11 @@ const ns = napScatter([{ minutes: 20, grogginess: 3 }, { minutes: 20, grogginess
 assert.deepEqual(ns.points, [{ minutes: 20, grogginess: 3, n: 2 }, { minutes: 15, grogginess: 1, n: 1 }, { minutes: 40, grogginess: 5, n: 1 }]);
 assert.deepEqual([ns.total, ns.short.n, Math.round(ns.short.avg * 100) / 100, ns.long], [4, 3, 2.33, null]);
 console.log("OK nap scatter");
+
+// One shared order: sections in the order of the day; unknown types in "Ostatní"; empty sections dropped.
+const { groupTemplates, SECTIONS } = await import("./src/sections.js");
+const all = ["gratitude", "screen_time", "meditation", "reading", "social", "steps", "sport", "nap", "fasting", "water", "food", "medication", "sleep", "emotions", "mind", "stress", "brand_new"].map((type, i) => ({ id: i + 1, type }));
+assert.deepEqual(entryOrder(all).map((t) => t.type), ["stress", "mind", "emotions", "sleep", "medication", "food", "water", "fasting", "nap", "sport", "steps", "social", "reading", "meditation", "screen_time", "gratitude", "brand_new"]);
+assert.deepEqual(groupTemplates(all).map((g) => g.title), [...SECTIONS.map((s) => s.title), "Ostatní"]);
+assert.deepEqual(groupTemplates([{ id: 1, type: "sleep" }]).map((g) => g.title), ["Noc a ráno"]);
+console.log("OK sections");

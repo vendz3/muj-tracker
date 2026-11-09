@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { api } from "./api.js";
+import { groupTemplates } from "./sections.js";
 import { GOALS, goalText } from "./goals.js";
 import { card, checkRow, checkbox, input, primary } from "./ui.js";
 
@@ -33,13 +34,6 @@ const FLAGS = {
   social: [["battery", "Sledovat sociální baterii (1–5)"]],
 };
 
-// Settings sections: [heading, template types]. A type not listed lands in "Ostatní" so it never disappears.
-const CATEGORIES = [
-  ["Zdraví a tělo", ["sleep", "nap", "sport", "food", "water", "steps", "fasting", "medication"]],
-  ["Produktivita", ["screen_time", "reading"]],
-  ["Duševní zdraví", ["mind", "emotions", "social", "gratitude", "meditation", "stress"]],
-];
-const KNOWN = CATEGORIES.flatMap(([, types]) => types);
 
 // Editable option lists in config (chips with ×, input + "Přidat"): which field, and its texts.
 const LISTS = {
@@ -163,8 +157,8 @@ export default function Templates({ templates, onChange }) {
           {error}
         </p>
       )}
-      {[...CATEGORIES, ["Ostatní", templates.map((t) => t.type).filter((x) => !KNOWN.includes(x))]].map(([heading, types]) => {
-        const group = templates.filter((t) => types.includes(t.type));
+      {/* Same sections and order as the day entry and the charts (sections.js); unknown types land in "Ostatní". */}
+      {groupTemplates(templates).map(({ title: heading, templates: group }) => {
         return group.length > 0 && (
           <div key={heading} className="space-y-3 pt-2 first:pt-0">
             <h2 className="px-1 text-sm font-semibold tracking-wide text-neutral-500 uppercase">{heading}</h2>
