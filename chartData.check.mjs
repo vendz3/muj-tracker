@@ -1,7 +1,7 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
 import { METRICS, activities, shiftClock, fmtHM, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, napScatter, weekDays, weekSummary, weeklyTicks } from "./src/chartData.js";
-import { goalStatus, goalText, meets } from "./src/goals.js";
+import { GOALS, goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
   { id: 1, type: "sleep" },
@@ -96,8 +96,14 @@ assert.equal(meets(2, { value: 2 }, "max"), true);
 assert.equal(meets(3, { value: 2 }, "max"), false);
 assert.equal(meets(2000, { value: 2200, tolerance: 200 }, "range"), true);
 assert.equal(meets(2401, { value: 2200, tolerance: 200 }, "range"), false);
-assert.equal(goalText({ value: 2200, tolerance: 200 }, "range", "kcal"), "2 200 ± 200 kcal");
-assert.equal(goalText({ value: 7.5 }, "min", "h"), "≥ 7,5 h");
+const gm = (type, key) => GOALS[type].find((m) => m.key === key);
+assert.equal(goalText({ value: 2200, tolerance: 200 }, gm("food", "calories")), "2 000–2 400 kcal");
+assert.equal(goalText({ value: 7.5 }, gm("sleep", "sleep_hours")), "aspoň 7,5 h");
+assert.equal(goalText({ value: 0 }, gm("food", "fast_food")), "ani jednou");
+assert.equal(goalText({ value: 2 }, gm("food", "coffee")), "nejvýš 2 šálky denně");
+assert.equal(goalText({ value: 5 }, gm("food", "coffee")), "nejvýš 5 šálků denně");
+assert.equal(goalText({ value: 1 }, gm("food", "sweets")), "nejvýš 1 porce denně");
+assert.equal(goalText({ value: 150 }, gm("sport", "week_minutes")), "aspoň 150 min týdně");
 assert.deepEqual(goalStatus(r([9, 1, 3, null, 2, null, 1, 3]), "v", { value: 2 }, "max"), { met: 3, of: 5, ok: true }); // last 7: 1,3,2,1,3
 assert.deepEqual(goalStatus(r([null, null]), "v", { value: 2 }, "max"), { met: 0, of: 0, ok: false });
 

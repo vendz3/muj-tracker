@@ -89,11 +89,11 @@ const GRATITUDE = 3; // gratitude journal: exactly three separate "things I'm gr
 // Field shown if tracked now OR already filled in the edited day (else saving would drop it).
 const shownFields = (t, saved) => (FIELDS[t.type] ?? []).filter((f) => !f.flag || t.config_json[f.flag] || saved?.[f.key] != null);
 const showMinutes = (t, saved) => t.config_json.duration || (saved?.sports ?? []).some((s) => s.minutes != null);
-// "Cíl: ≥ 7 h" for every goal set on template t (optionally only the one for metric `key`).
+// "Cíl: aspoň 7 h" for every goal set on template t (optionally only the one for metric `key`).
 function goalHint(t, key) {
   const parts = (GOALS[t.type] ?? [])
     .filter((m) => (key === undefined || m.key === key) && t.config_json.goals?.[m.key])
-    .map((m) => goalText(t.config_json.goals[m.key], m.dir, m.unit) + (m.per && m.period === "week" ? ` ${m.per}` : ""));
+    .map((m) => goalText(t.config_json.goals[m.key], m));
   return parts.length ? <span className="block text-sm text-neutral-500">Cíl: {parts.join(" · ")}</span> : null;
 }
 // iOS Safari draws native date / time fields wider than the card (and centred); flatten them so w-full holds.

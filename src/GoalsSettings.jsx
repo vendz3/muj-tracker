@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "./api.js";
-import { DIR_WORD, GOALS, goalText } from "./goals.js";
+import { DIR_WORD, GOALS, goalText, unitFor } from "./goals.js";
 import { Switch } from "./Templates.jsx";
 import { card, cardTitle, input } from "./ui.js";
 
@@ -48,7 +48,7 @@ function GoalInput({ meta, goal, off, onSave, onToggle, onInvalid }) {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className={`text-xs font-medium uppercase tracking-wider ${goal ? "text-neutral-400" : "text-neutral-600"}`}>{meta.label}</p>
-          {!goal && <p className="text-xs text-neutral-600">vypnuto{off ? ` · naposledy ${goalText(off, meta.dir, meta.unit)}` : ""}</p>}
+          {!goal && <p className="text-xs text-neutral-600">vypnuto{off ? ` · naposledy ${goalText(off, meta)}` : ""}</p>}
         </div>
         <Switch checked={!!goal} label={`Cíl ${meta.label}`} onChange={onToggle} />
       </div>
@@ -63,7 +63,7 @@ function GoalInput({ meta, goal, off, onSave, onToggle, onInvalid }) {
           </>
         )}
         <span>
-          {meta.unit}
+          {unitFor(meta, Number(value) || 0)}
           {meta.per ? ` ${meta.per}` : ""}
         </span>
         </div>

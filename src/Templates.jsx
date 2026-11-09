@@ -168,8 +168,7 @@ export default function Templates({ templates, onChange }) {
     const goal = t.config_json.goals?.[meta.key];
     return goal && (
       <p key={meta.key} className="pl-4 text-sm text-neutral-500">
-        Aktuální cíl: {goalText(goal, meta.dir, meta.unit)}
-        {meta.per ? ` ${meta.per}` : ""}
+        Aktuální cíl: {goalText(goal, meta)}
       </p>
     );
   }

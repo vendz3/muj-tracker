@@ -74,7 +74,7 @@ function GoalSwatch({ dir }) {
 function GoalStatus({ info, short = false }) {
   if (!info) return null;
   const { met, of, ok } = info.status;
-  const target = `cíl ${goalText(info.goal, info.dir, info.unit)}${info.per && !short ? ` ${info.per}` : ""}`;
+  const target = `cíl ${goalText(info.goal, short ? { ...info, per: undefined } : info)}`;
   if (!of)
     return (
       <span className="text-neutral-500">

@@ -238,7 +238,7 @@ function DayGoalRow({ item: { info, rows, level }, dates }) {
     <>
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 text-sm text-neutral-200">
-          {info.label} <span className="text-xs whitespace-nowrap text-neutral-500">{goalText(info.goal, info.dir, info.unit)}</span>
+          {info.label} <span className="text-xs whitespace-nowrap text-neutral-500">{goalText(info.goal, info)}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2 text-xs text-neutral-400">
           {of > 0 && `${met}/${of}`} <Level level={level} />
@@ -274,7 +274,7 @@ function WeekGoalRow({ item: { info, rate, level } }) {
         <span className="min-w-0 text-sm text-neutral-200">
           {info.label}{" "}
           <span className="text-xs whitespace-nowrap text-neutral-500">
-            {goalText(info.goal, info.dir, info.unit)} {info.per}
+            {goalText(info.goal, info)}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2 text-xs text-neutral-400">

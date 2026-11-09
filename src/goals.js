@@ -14,13 +14,13 @@ export const GOALS = {
   ],
   food: [
     g("calories", "range", "Kalorie", "kcal", 0, 20000, 50, { flag: "calories", defaultTolerance: 200, def: 2200 }),
-    // Counts per day; "Alkohol ≤ 0" = alcohol-free days. Unit lives in the label (no Czech plurals needed).
-    g("drinks", "max", "Alkohol (drinky)", "", 0, 50, 1, { flag: "alcohol", per: "denně", def: 0 }),
-    g("coffee", "max", "Kofein (šálky)", "", 0, 50, 1, { flag: "caffeine", per: "denně", def: 2 }),
-    g("sweets", "max", "Sladkosti (porce)", "", 0, 50, 1, { flag: "sugar", per: "denně", def: 1 }),
-    g("sugary_drinks", "max", "Slazené nápoje", "", 0, 50, 1, { flag: "sugary_drinks", per: "denně", def: 0 }),
-    g("fast_food", "max", "Fast food (porce)", "", 0, 50, 1, { flag: "fast_food", per: "denně", def: 0 }),
-    g("nicotine", "max", "Nikotin (dávky)", "", 0, 50, 1, { flag: "nicotine", per: "denně", def: 0 }),
+    // Counts per day; goal 0 = "ani jednou". nouns: Czech forms for 1 / 2–4 / 5+ ("2 šálky", "5 šálků").
+    g("drinks", "max", "Alkohol", "", 0, 50, 1, { flag: "alcohol", per: "denně", def: 0, nouns: ["drink", "drinky", "drinků"] }),
+    g("coffee", "max", "Kofein", "", 0, 50, 1, { flag: "caffeine", per: "denně", def: 2, nouns: ["šálek", "šálky", "šálků"] }),
+    g("sweets", "max", "Sladkosti", "", 0, 50, 1, { flag: "sugar", per: "denně", def: 1, nouns: ["porce", "porce", "porcí"] }),
+    g("sugary_drinks", "max", "Slazené nápoje", "", 0, 50, 1, { flag: "sugary_drinks", per: "denně", def: 0, nouns: ["nápoj", "nápoje", "nápojů"] }),
+    g("fast_food", "max", "Fast food", "", 0, 50, 1, { flag: "fast_food", per: "denně", def: 0, nouns: ["porce", "porce", "porcí"] }),
+    g("nicotine", "max", "Nikotin", "", 0, 50, 1, { flag: "nicotine", per: "denně", def: 0, nouns: ["dávka", "dávky", "dávek"] }),
   ],
   water: [g("liters", "min", "Pitný režim", "l", 0, 20, 0.25, { per: "denně", def: 2 })],
   reading: [
@@ -41,11 +41,23 @@ export function meets(v, goal, dir) {
   return Math.abs(v - goal.value) <= (goal.tolerance ?? 0);
 }
 
-// "≥ 7 h", "≤ 2", "2 200 ± 200 kcal"
-export function goalText(goal, dir, unit) {
-  const u = unit ? ` ${unit}` : "";
-  if (dir === "range") return `${num(goal.value)} ± ${num(goal.tolerance ?? 0)}${u}`;
-  return `${dir === "min" ? "≥" : "≤"} ${num(goal.value)}${u}`;
+// Unit for n: plural noun for counts ("1 šálek", "2 šálky", "5 šálků"; decimals take the 2–4 form), else meta.unit.
+export function unitFor(meta, n) {
+  if (!meta.nouns) return meta.unit;
+  return meta.nouns[n === 1 ? 0 : !Number.isInteger(n) || (n >= 2 && n <= 4) ? 1 : 2];
+}
+
+// Goal in words: "aspoň 7 h", "nejvýš 2 šálky denně", "ani jednou", "2 000–2 400 kcal". meta: GOALS entry (dir, unit, nouns, per).
+export function goalText(goal, meta) {
+  const per = meta.per ? ` ${meta.per}` : "";
+  if (meta.dir === "max" && goal.value === 0) return "ani jednou";
+  if (meta.dir === "range") {
+    const t = goal.tolerance ?? 0;
+    const u = meta.unit ? ` ${meta.unit}` : "";
+    return `${t ? `${num(Math.max(0, goal.value - t))}–${num(goal.value + t)}` : num(goal.value)}${u}${per}`;
+  }
+  const u = unitFor(meta, goal.value);
+  return `${DIR_WORD[meta.dir]} ${num(goal.value)}${u ? ` ${u}` : ""}${per}`;
 }
 
 // Daily goal: how many of the filled days among the last `days` rows met it (unfilled days don't count).
