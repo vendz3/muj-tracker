@@ -3,6 +3,7 @@
 //   accentText    accent used as text on cards, >= 4.5:1
 //   onAccent      text on accent fills
 //   accent2Text   secondary accent as text (the brief's light accents are ~2–3.7:1 on white)
+//   chart3/chart4 3rd and 4th chart series: own hues, >= 3:1 on the card (tints of the accents vanished into it)
 // applyTheme() turns a theme into CSS variables that Tailwind's classes already read
 // (neutral-* = surfaces/text, accent-* = accent), so components keep their classes.
 export const THEMES = [
@@ -10,21 +11,25 @@ export const THEMES = [
     id: "neon", name: "Neon Drive", description: "Hluboká černá, neonová růžová a cyan. Energie na každý den.", dark: true,
     bg: "#09090B", card: "#141418", text: "#FAFAFA", accent: "#D946EF", accent2: "#22D3EE", line: "#27272A",
     accentStrong: "#D946EF", accentText: "#E879F9", onAccent: "#09090B", accent2Text: "#22D3EE",
+    chart3: "#FACC15", chart4: "#A3E635",
   },
   {
     id: "midnight", name: "Midnight Pro", description: "Tmavá břidlice a elegantní modrá, jako dark mode v macOS.", dark: true,
     bg: "#0F172A", card: "#1E293B", text: "#F8FAFC", accent: "#3B82F6", accent2: "#34D399", line: "#334155",
     accentStrong: "#2563EB", accentText: "#60A5FA", onAccent: "#FFFFFF", accent2Text: "#34D399",
+    chart3: "#F59E0B", chart4: "#F472B6",
   },
   {
     id: "zen", name: "Zen Minimal", description: "Čistá bílá, tlumená šalvěj a břidlice. Nic navíc.", dark: false,
     bg: "#FFFFFF", card: "#FFFFFF", text: "#111827", accent: "#5F7F6A", accent2: "#64748B", line: "#F3F4F6",
     accentStrong: "#4D6B57", accentText: "#4D6B57", onAccent: "#FFFFFF", accent2Text: "#475569",
+    chart3: "#B7791F", chart4: "#9F4B6E",
   },
   {
     id: "prism", name: "Vibrant Prism", description: "Tmavý grafit a zářivé barvy duhy. Grafy, které hrají.", dark: true,
     bg: "#141416", card: "#1F1F23", text: "#F5F5F7", accent: "#FF5E9C", accent2: "#4ECDC4", line: "#2C2C31",
     accentStrong: "#FF5E9C", accentText: "#FF8DB8", onAccent: "#14141A", accent2Text: "#4ECDC4",
+    chart3: "#FFE66D", chart4: "#C56CF0",
     // Optional extras: chart = palette cycled per chart card, fill = button gradient, glow = hover shadow.
     chart: ["#4ECDC4", "#FF6B6B", "#FFE66D", "#C56CF0", "#32FF7E", "#5DADFF"],
     fill: "linear-gradient(135deg, #FF5E9C, #FF9F43)", glow: "#FF5E9C80",
@@ -81,6 +86,8 @@ export function themeVars(t) {
     "--color-on-accent": t.onAccent,
     "--color-accent2": t.accent2,
     "--color-accent2-text": t.accent2Text,
+    "--color-chart3": t.chart3,
+    "--color-chart4": t.chart4,
     "--color-line": t.line,
     "--color-shade": t.dark ? "#00000066" : `${t.text}1f`,
     // "" makes setProperty remove the variable, so switching away from a theme with extras leaves none behind.

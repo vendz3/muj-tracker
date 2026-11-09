@@ -2,17 +2,16 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary } from "./chartData.js";
+import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, withRollingAvg } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { card } from "./ui.js";
 
 // Chart colors = CSS variables of the active theme (themes.js themeVars), so switching themes repaints the
-// charts with no re-render. Tints mix into the card color, not transparency, so stacked bars never show through.
-const tint = (v) => `color-mix(in srgb, var(${v}) 40%, var(--color-neutral-900))`;
+// charts with no re-render. Series 3/4 use the theme's own extra hues (chart3/chart4), always readable on the card.
 // --chart-n is set per card from the theme's palette (cycleVars); themes without one leave it invalid -> fallback.
 const C = {
   a1: "var(--chart-1, var(--color-accent-500))", a2: "var(--chart-2, var(--color-accent2))",
-  a3: `var(--chart-3, ${tint("--color-accent-500")})`, a4: `var(--chart-4, ${tint("--color-accent2")})`,
+  a3: "var(--chart-3, var(--color-chart3))", a4: "var(--chart-4, var(--color-chart4))",
   gray: "var(--color-neutral-600)", mood: "var(--color-accent-400)",
   surface: "var(--color-neutral-900)", grid: "var(--color-neutral-800)", axis: "var(--color-neutral-700)",
   tick: "var(--color-neutral-500)", cursor: "var(--color-neutral-700)", goalInk: "var(--color-neutral-400)",
@@ -39,10 +38,12 @@ function ChartTooltip({ active, payload, label, series }) {
       {items.length === 0 && <p className="text-neutral-500">{row._minutes === 0 ? "Bez sportu" : "Nevyplněno"}</p>}
       {items.map((s) => {
         const v = payload[0].payload[s.key];
+        const ma = row[`${s.key}_ma`];
         return (
           <p key={s.key} className="flex items-center gap-2 text-neutral-100">
             <span className="size-2.5 shrink-0 rounded-full" style={{ background: paint(c, s.color) }} aria-hidden="true" />
             {s.label}: <b className="font-semibold">{s.format ? s.format(v, payload[0].payload) : `${num(v)}${s.unit ? ` ${s.unit}` : ""}`}</b>
+            {ma != null && <span className="text-neutral-400">· Ø 7 dní {num(ma)}</span>}
           </p>
         );
       })}
@@ -108,16 +109,23 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
   const avg = series.length === 1 ? series[0].avg : null;
   // Counts (sport activities): whole-number axis 0, 1, 2… sized to the tallest stacked day.
   const intTop = series.some((s) => s.integer) ? Math.max(2, ...rows.map((r) => series.reduce((a, s) => a + (r[s.key] ?? 0), 0))) : null;
+  // Clock: whole-hour ticks around the data (every 2 h if it spans more than 4), so labels read "23:00", "0:00".
+  const clockVals = isClock ? rows.flatMap((r) => series.map((s) => r[s.key])).filter((v) => v != null) : [];
+  const lo = Math.floor(Math.min(...clockVals)), hi = Math.max(Math.ceil(Math.max(...clockVals)), Math.floor(Math.min(...clockVals)) + 1);
+  const clockTicks = isClock && clockVals.length ? Array.from({ length: Math.floor((hi - lo) / (hi - lo > 4 ? 2 : 1)) + 1 }, (_, i) => lo + i * (hi - lo > 4 ? 2 : 1)) : undefined;
+  // Daily 1–5 scores zigzag; a 7-day rolling average carries the trend, the daily points stay as faint context.
+  const trend = isScore && !week;
+  const data = trend ? withRollingAvg(rows, series.map((s) => s.key)) : rows;
   return (
     <div role="img" aria-label={label} style={{ height }} className="w-full">
       <ResponsiveContainer>
-        <ComposedChart data={rows} margin={{ top: compact ? 6 : 8, right: 4, bottom: showXAxis ? 0 : 6, left: -24 }}>
+        <ComposedChart data={data} margin={{ top: compact ? 6 : 8, right: 4, bottom: showXAxis ? 0 : 6, left: isClock ? -12 : -24 }}>
           <CartesianGrid stroke={c.grid} vertical={false} />
           <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} minTickGap={week ? 0 : 16} interval={week ? 0 : "preserveEnd"} hide={!showXAxis} />
           <YAxis
-            domain={isScore ? [1, 5] : isClock ? [(min) => Math.floor(min * 2) / 2 - 0.5, (max) => Math.ceil(max * 2) / 2 + 0.5] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
+            domain={isScore ? [1, 5] : isClock ? [clockTicks?.[0] ?? 0, clockTicks?.at(-1) ?? 24] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
             tickCount={5}
-            ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : intTop ? (compact ? [0, intTop] : [...Array(intTop + 1).keys()]) : undefined}
+            ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : isClock ? clockTicks : intTop ? (compact ? [0, intTop] : [...Array(intTop + 1).keys()]) : undefined}
             interval={compact ? 0 : "preserveEnd"} // short rows: recharts would drop the 1/3 labels as "overlapping"
             allowDecimals={!isScore}
             tick={tick}
@@ -149,9 +157,10 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
                 name={s.label}
                 type="linear" // daily 1–5 scores: straight segments, no invented in-between values
                 stroke={paint(c, s.color)}
-                strokeWidth={2}
+                strokeWidth={trend ? 1 : 2}
+                strokeOpacity={trend ? 0.35 : 1}
                 connectNulls={false}
-                dot={{ r: 4, fill: paint(c, s.color), stroke: c.surface, strokeWidth: 2 }}
+                dot={trend ? { r: 2.5, fill: paint(c, s.color), fillOpacity: 0.5, strokeWidth: 0 } : { r: 4, fill: paint(c, s.color), stroke: c.surface, strokeWidth: 2 }}
                 activeDot={{ r: 5, stroke: c.surface, strokeWidth: 2 }}
                 isAnimationActive={false}
               />
@@ -171,6 +180,21 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
               />
             ),
           )}
+          {trend &&
+            series.map((s) => (
+              <Line
+                key={`${s.key}_ma`}
+                dataKey={`${s.key}_ma`}
+                name={`${s.label} (Ø 7 dní)`}
+                legendType="none"
+                type="monotone"
+                stroke={paint(c, s.color)}
+                strokeWidth={compact ? 2 : 3}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+              />
+            ))}
           {g && goal.dir !== "range" && (
             <ReferenceLine y={g.value} stroke={c.goalInk} strokeWidth={1} strokeDasharray="4 3" />
           )}
@@ -474,7 +498,7 @@ function CardBody({ chart: { template, groups, summary, weekGoals }, week = fals
   );
 }
 
-const WEEK_NAME = { 0: "Tento týden", [-1]: "Minulý týden" };
+const WEEK_NAME = { 0: "Posledních 7 dní", [-1]: "Předchozích 7 dní" };
 
 // One ring: gray track + arc filled to `frac` (0–1), starting at 12 o'clock.
 export function Ring({ r, frac, color, width }) {
@@ -538,7 +562,7 @@ function SportRings({ group, goals }) {
   );
 }
 
-// Sport: Týden (Mon–Sun, arrows or swipe between weeks, every day labelled) | Měsíc (activity rings, SportRings).
+// Sport: Týden (rolling 7 days ending today, arrows or swipe to the 7 before, every day labelled) | Měsíc (activity rings, SportRings).
 function SportCard({ month, records }) {
   const [view, setView] = useState("week");
   const [offset, setOffset] = useState(0);
@@ -579,12 +603,12 @@ function SportCard({ month, records }) {
       </div>
       {view === "week" && (
         <div className="mb-2 flex items-center justify-between">
-          {arrow(-1, ChevronLeft, "Předchozí týden", !canBack)}
+          {arrow(-1, ChevronLeft, "Předchozích 7 dní", !canBack)}
           <p className="text-center text-sm text-neutral-300" aria-live="polite">
             {WEEK_NAME[offset] && <span className="block text-xs text-neutral-500">{WEEK_NAME[offset]}</span>}
             {shortDate(days[0].date)} – {shortDate(days[6].date)}
           </p>
-          {arrow(1, ChevronRight, "Další týden", offset === 0)}
+          {arrow(1, ChevronRight, "Dalších 7 dní", offset === 0)}
         </div>
       )}
       {view === "month" ? (
@@ -639,7 +663,7 @@ export default function Dashboard({ records, templates }) {
         </section>
       ))}
       <p className="px-1 text-xs text-neutral-600">
-        Posledních {DAYS} dní, souhrny za {WEEK} dní. Přesná čísla najdeš v Nastavení → Záznamy.
+        Posledních {DAYS} dní, souhrny za {WEEK} dní. U hodnocení 1–5 je plná čára průměr za {WEEK} dní, tečky jsou jednotlivé dny. Přesná čísla najdeš v Historii.
       </p>
     </div>
   );

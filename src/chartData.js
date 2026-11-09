@@ -116,13 +116,27 @@ export const entryOrder = (ts) => {
   return [...FIRST.flatMap((type) => byId.filter((t) => t.type === type)), ...byId.filter((t) => !FIRST.includes(t.type))];
 };
 
-// The 7 days Mon–Sun of the week `offset` weeks from this one (0 = this week, -1 = last); future days have no record.
+// 7 days ending today (offset 0), or the 7-day windows before it (offset -1, -2…): rolling like the rest of the app,
+// so the sport week is never empty on a Monday.
 export function weekDays(records, offset = 0, today = new Date()) {
   const byDate = Object.fromEntries(records.map((r) => [r.date, r]));
-  const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7) + 7 * offset);
+  const end = today.getDate() + 7 * offset;
   return Array.from({ length: 7 }, (_, i) => {
-    const date = iso(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i));
+    const date = iso(new Date(today.getFullYear(), today.getMonth(), end - 6 + i));
     return { date, record: byDate[date] ?? null };
+  });
+}
+
+// Adds `${key}_ma` = average of the last `n` rows' values (needs >= minN filled), the readable trend under noisy
+// daily 1–5 scores. Rows are copied, the input is not touched.
+export function withRollingAvg(rows, keys, n = WEEK, minN = 3) {
+  return rows.map((r, i) => {
+    const out = { ...r };
+    for (const k of keys) {
+      const xs = rows.slice(Math.max(0, i - n + 1), i + 1).map((x) => x[k]).filter((v) => v != null);
+      out[`${k}_ma`] = xs.length >= minN ? sum(xs) / xs.length : null;
+    }
+    return out;
   });
 }
 
