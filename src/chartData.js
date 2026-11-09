@@ -29,12 +29,13 @@ export const METRICS = {
     value("calories", "Příjem", "kcal", A1),
   ],
   water: [value("liters", "Vypito", "l", A1)],
-  // avgLine: dotted average line in the chart; zeroFill: a day without the metric counts as 0, not as unfilled.
+  // avgLine: dotted average line in the chart; zeroFill: a recorded day without the metric counts as 0 (not done),
+  // a day with no record at all stays unfilled.
   steps: [{ ...value("steps", "Kroky", "kroků", A1), avgLine: true }],
   fasting: [value("hours", "Půst", "h", A1)],
   screen_time: [{ ...value("minutes", "Čas u obrazovky", "min", A1), avgLine: true }],
   // shortcut: pages aren't charted (another unit on the same axis); they show in Záznamy. Chart them if asked.
-  reading: [value("minutes", "Čtení", "min", A1)],
+  reading: [{ ...value("minutes", "Čtení", "min", A1), zeroFill: true }], // only reading days get written down
   meditation: [{ ...value("minutes", "Meditace", "min", A1), zeroFill: true }], // modal saves only >= 1 min
   stress: [{ ...score("stress", "Stres", A2), better: "low" }],
 };
@@ -189,9 +190,9 @@ export function templateCharts(days, templates) {
     const data = days.map(({ record }) => record?.results.find((r) => r.template_id === t.id)?.result_data_json);
     const sport = t.type === "sport" ? sportSeries(t, data) : null;
     const metrics = sport ? sport.series : METRICS[t.type];
-    const rows = days.map(({ date }, i) => ({
+    const rows = days.map(({ date, record }, i) => ({
       date,
-      ...(sport ? sport.rows[i] : Object.fromEntries(metrics.map((m) => [m.key, (data[i] ? m.get(data[i]) : null) ?? (m.zeroFill ? 0 : null)]))),
+      ...(sport ? sport.rows[i] : Object.fromEntries(metrics.map((m) => [m.key, (data[i] ? m.get(data[i]) : null) ?? (m.zeroFill && record ? 0 : null)]))),
       // Activities that day (sport entries), for the weekly activity goal; "bez sportu" = 0.
       ...(t.type === "sport" && { _count: data[i] ? (data[i].sports?.length ?? 0) : null }),
     }));

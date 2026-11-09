@@ -225,7 +225,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       return (
         <>
           <p className="mb-3 text-neutral-400">Jak se dnes cítíš?</p>
-          <Rating label="Nálada" labels={MOODS} captions={MOOD_LABELS} value={mood} onChange={setMood} />
+          <Rating label="Nálada" labels={MOODS} captions={MOOD_LABELS} value={mood} onChange={setMood} reverse />
         </>
       );
     const v = state[current.id];

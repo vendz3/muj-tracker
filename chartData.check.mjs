@@ -180,3 +180,12 @@ const srecs = [["2026-11-10", 4000], ["2026-11-11", 8000]].map(([date, steps]) =
 assert(templateCharts(lastDays(srecs, today), [st])[0].groups[0].series[0].avg === 6000, "steps avg line");
 }
 console.log("OK week view, order, averages");
+
+// Reading: only reading days get written down, so a recorded day without it counts as 0 (3 of 7, not 3 of 3);
+// a day with no record at all stays unfilled.
+const rd = { id: 10, type: "reading", config_json: { minutes: true, goals: { minutes: { value: 20 } } } };
+const rrecs = [...Array(7)].map((_, i) => ({ date: `2026-11-${String(i + 3).padStart(2, "0")}`, results: i % 2 ? [{ template_id: 10, result_data_json: { minutes: 30 } }] : [] }));
+const rc = templateCharts(lastDays(rrecs, new Date(2026, 10, 9)), [rd])[0]; // today = 9.11., the last of the 7 recorded days
+assert.deepEqual(rc.goals[0].status, { met: 3, of: 7, ok: false });
+assert.equal(templateCharts(lastDays([rrecs[1]], new Date(2026, 10, 5)), [rd])[0].rows.at(-1).minutes, null); // 5.11. has no record
+console.log("OK reading zero-fill");
