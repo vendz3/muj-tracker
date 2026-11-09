@@ -4,7 +4,9 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import Rating from "./Rating.jsx";
 import { api } from "./api.js";
 import { SECTIONS, groupTemplates } from "./sections.js";
-import { GOALS, dayXP, goalText } from "./goals.js";
+import { dayXP, goalsOf, goalText } from "./goals.js";
+import { TemplateIcon } from "./CustomTemplate.jsx";
+import { tracked } from "./flags.js";
 import { card, checkRow, checkbox, input, primary, secondary } from "./ui.js";
 
 export const MOODS = [Frown, Annoyed, Meh, Smile, Laugh];
@@ -36,41 +38,41 @@ const clockH = (s) => {
 export const sleptHours = (bed, wake) => (bed && wake ? Math.round((Math.round(((clockH(wake) - clockH(bed) + 24) % 24) * 60) / 60) * 1000) / 1000 : null);
 const FIELDS = {
   sleep: [
-    { key: "sleep_quality", flag: "quality", kind: "rating", label: "Kvalita spánku", labels: FACES, reverse: true },
-    { key: "bedtime", flag: "times", kind: "time", label: "Usnul(a) jsem", hint: "včera večer", range: ["20:00", 480], base: "23:00", nudge: 5 },
-    { key: "waketime", flag: "times", kind: "time", label: "Vstal(a) jsem", range: ["04:00", 480], base: "07:00", nudge: 5 },
-    { key: "sleep_hours", flag: "hours", kind: "number", label: "Naspáno", hm: true, max: 24, slider: [12, 5], base: 7.5, nudge: 5 },
+    { key: "sleep_quality", kind: "rating", label: "Kvalita spánku", labels: FACES, reverse: true },
+    { key: "bedtime", kind: "time", label: "Usnul(a) jsem", hint: "včera večer", range: ["20:00", 480], base: "23:00", nudge: 5 },
+    { key: "waketime", kind: "time", label: "Vstal(a) jsem", range: ["04:00", 480], base: "07:00", nudge: 5 },
+    { key: "sleep_hours", kind: "number", label: "Naspáno", hm: true, max: 24, slider: [12, 5], base: 7.5, nudge: 5 },
   ],
   // group: small heading inside the card when it changes. Fields with a retired flag ("retired") only show on old
   // days that hold a value, so nothing saved is lost (shownFields).
   food: [
-    { key: "quality", flag: "quality", kind: "rating", label: "Jak zdravě jsi jedl(a)?", labels: [Pizza, Sandwich, Soup, Salad, Carrot], slider: true, reverse: true },
-    { key: "calories", flag: "calories", kind: "number", label: "Kalorie", hint: "kcal za celý den", step: 1, max: 20000, slider: [4000, 10], nudge: 10, base: 2000, placeholder: "např. 2100" },
+    { key: "quality", kind: "rating", label: "Jak zdravě jsi jedl(a)?", labels: [Pizza, Sandwich, Soup, Salad, Carrot], slider: true, reverse: true },
+    { key: "calories", kind: "number", label: "Kalorie", hint: "kcal za celý den", step: 1, max: 20000, slider: [4000, 10], nudge: 10, base: 2000, placeholder: "např. 2100" },
     { key: "veg", flag: "retired", kind: "count", label: "Zelenina a ovoce (porce)" },
     { key: "protein", flag: "retired", kind: "count", label: "Jídla s bílkovinou" },
     { key: "processed", flag: "retired", kind: "count", label: "Průmyslově zpracované (porce)" },
-    { key: "drinks", flag: "alcohol", group: "Hříšky a povzbuzováky", kind: "count", label: "Alkohol", hint: "drinky · pivo 0,5 l = víno 2 dl = panák" },
-    { key: "coffee", flag: "caffeine", group: "Hříšky a povzbuzováky", kind: "count", label: "Kofein", hint: "šálky · káva, energiťák, silný čaj" },
-    { key: "sweets", flag: "sugar", group: "Hříšky a povzbuzováky", kind: "count", label: "Sladkosti", hint: "porce · sušenka, zákusek, čokoláda" },
-    { key: "sugary_drinks", flag: "sugary_drinks", group: "Hříšky a povzbuzováky", kind: "count", label: "Slazené pití", hint: "sklenice · limo, džus, sladký energiťák" },
-    { key: "fast_food", flag: "fast_food", group: "Hříšky a povzbuzováky", kind: "count", label: "Fast food", hint: "porce · burger, pizza, kebab, smažák" },
-    { key: "nicotine", flag: "nicotine", group: "Hříšky a povzbuzováky", kind: "count", label: "Nikotin", hint: "dávky · cigareta, vape, sáček" },
-    { key: "last_meal", flag: "meal_times", group: "Večer", kind: "time", label: "Poslední sousto", hint: "spočítáme, kolik hodin před spaním", range: ["15:00", 540], base: "19:00", nudge: 5 },
+    { key: "drinks", group: "Hříšky a povzbuzováky", kind: "count", label: "Alkohol", hint: "drinky · pivo 0,5 l = víno 2 dl = panák" },
+    { key: "coffee", group: "Hříšky a povzbuzováky", kind: "count", label: "Kofein", hint: "šálky · káva, energiťák, silný čaj" },
+    { key: "sweets", group: "Hříšky a povzbuzováky", kind: "count", label: "Sladkosti", hint: "porce · sušenka, zákusek, čokoláda" },
+    { key: "sugary_drinks", group: "Hříšky a povzbuzováky", kind: "count", label: "Slazené pití", hint: "sklenice · limo, džus, sladký energiťák" },
+    { key: "fast_food", group: "Hříšky a povzbuzováky", kind: "count", label: "Fast food", hint: "porce · burger, pizza, kebab, smažák" },
+    { key: "nicotine", group: "Hříšky a povzbuzováky", kind: "count", label: "Nikotin", hint: "dávky · cigareta, vape, sáček" },
+    { key: "last_meal", group: "Večer", kind: "time", label: "Poslední sousto", hint: "spočítáme, kolik hodin před spaním", range: ["15:00", 540], base: "19:00", nudge: 5 },
     { key: "first_meal", flag: "retired", group: "Večer", kind: "time", label: "První jídlo" },
     { key: "meal_gap_h", flag: "retired", group: "Večer", kind: "number", label: "Poslední jídlo před spaním (hodiny)", step: 0.5, max: 12, slider: [8, 0.5] },
     { key: "overate", flag: "retired", group: "Večer", kind: "bool", label: "Přejedl(a) jsem se" },
     { key: "slump", flag: "retired", group: "Večer", kind: "bool", label: "Útlum po jídle" },
   ],
   mind: [
-    { key: "clarity", flag: "clarity", kind: "rating", label: "Jasná hlava", labels: [CloudFog, Cloudy, Cloud, CloudSun, Sun], reverse: true },
-    { key: "energy", flag: "energy", kind: "rating", label: "Odpolední energie (14–16 h)", labels: BATTERY_ICONS, reverse: true },
-    { key: "frustration", flag: "frustration", kind: "rating", label: "Podrážděnost", labels: CALM },
+    { key: "clarity", kind: "rating", label: "Jasná hlava", labels: [CloudFog, Cloudy, Cloud, CloudSun, Sun], reverse: true },
+    { key: "energy", kind: "rating", label: "Odpolední energie (14–16 h)", labels: BATTERY_ICONS, reverse: true },
+    { key: "frustration", kind: "rating", label: "Podrážděnost", labels: CALM },
   ],
   // bare: label only for screen readers (the card prompt already says it).
   // needs: shown (and saved) only when that field is filled; grogginess means nothing without a nap.
   nap: [
     { key: "minutes", kind: "number", label: "Jak dlouho jsi spal(a)?", hint: "minuty · bez napu nech prázdné", step: 1, min: 1, max: 180, slider: [90, 1], nudge: 1, base: 20, placeholder: "např. 20" },
-    { key: "grogginess", flag: "grogginess", needs: "minutes", kind: "rating", label: "Rozespalost po probuzení", labels: CALM },
+    { key: "grogginess", needs: "minutes", kind: "rating", label: "Rozespalost po probuzení", labels: CALM },
   ],
   water: [{ key: "liters", kind: "number", label: "Vypito", bare: true, step: 0.05, max: 20, slider: [5, 0.1], nudge: 0.1, base: 1.5, placeholder: "např. 1,5" }],
   steps: [{ key: "steps", kind: "number", label: "Kroky", hint: "najdeš v mobilu nebo hodinkách", step: 1, max: 200000, slider: [30000, 100], nudge: 100, base: 6000, placeholder: "např. 8000" }],
@@ -78,8 +80,8 @@ const FIELDS = {
   fasting: [{ key: "fasted", kind: "bool", label: "Držel(a) jsi dnes půst?", hint: (c) => (c.full_day ? "celodenní" : `${String(c.hours).replace(".", ",")} h`) }],
   screen_time: [{ key: "minutes", kind: "number", label: "Čas u obrazovky", hint: "minuty · telefon ti to řekne v nastavení", step: 1, max: 1440, slider: [600, 5], base: 120, nudge: 5, placeholder: "např. 120" }],
   reading: [
-    { key: "minutes", flag: "minutes", kind: "number", label: "Čtení", hint: "minuty", step: 1, min: 1, max: 1440, slider: [180, 1], base: 20, nudge: 1, placeholder: "např. 30" },
-    { key: "pages", flag: "pages", kind: "number", label: "Přečteno", hint: "stránky", step: 1, min: 1, max: 5000, slider: [200, 1], nudge: 1, base: 20, placeholder: "např. 20" },
+    { key: "minutes", kind: "number", label: "Čtení", hint: "minuty", step: 1, min: 1, max: 1440, slider: [180, 1], base: 20, nudge: 1, placeholder: "např. 30" },
+    { key: "pages", kind: "number", label: "Přečteno", hint: "stránky", step: 1, min: 1, max: 5000, slider: [200, 1], nudge: 1, base: 20, placeholder: "např. 20" },
   ],
   meditation: [{ key: "minutes", kind: "number", label: "Meditace", hint: "minuty", step: 1, min: 1, max: 1440, slider: [60, 1], base: 10, nudge: 1, placeholder: "např. 10" }],
   stress: [{ key: "stress", kind: "rating", label: "Jak moc ve stresu?", labels: CALM }],
@@ -97,12 +99,21 @@ export const BATTERY = ["Vysálo mě", "Spíš vysálo", "Neutrální", "Spíš 
 const fastingHours = (t, saved) => (saved?.fasted && saved.hours != null ? saved.hours : t.config_json.full_day ? 24 : t.config_json.hours);
 const GRATITUDE = 3; // gratitude journal: exactly three separate "things I'm grateful for"
 
-// Field shown if tracked now OR already filled in the edited day (else saving would drop it).
-const shownFields = (t, saved) => (FIELDS[t.type] ?? []).filter((f) => !f.flag || t.config_json[f.flag] || saved?.[f.key] != null);
-const showMinutes = (t, saved) => t.config_json.duration || (saved?.sports ?? []).some((s) => s.minutes != null);
+// Custom template: one field "value" from config_json.kind. Rating 1–10 shows the better end on the left.
+const SCALE10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+function customField(t) {
+  const c = t.config_json;
+  if (c.kind === "bool") return { key: "value", kind: "bool", label: "Dnes splněno?" };
+  if (c.kind === "rating") return { key: "value", kind: "rating", label: "Škála 1–10", hint: c.better === "low" ? "nižší je lepší" : "vyšší je lepší", options: SCALE10, cols: 5, reverse: c.better !== "low" };
+  return { key: "value", kind: "number", label: "Hodnota", hint: c.unit || undefined, step: 0.01, max: 1000000, nudge: 1, base: 0, placeholder: "např. 10" };
+}
+const fieldsOf = (t) => (t.type === "custom" ? [customField(t)] : FIELDS[t.type] ?? []);
+// Only switched-on fields are shown (flags.js); saving keeps the saved values of hidden ones (toResults).
+const shownFields = (t) => fieldsOf(t).filter((f) => f.flag !== "retired" && tracked(t, f.key));
+const showMinutes = (t) => !!t.config_json.duration;
 // "Cíl: aspoň 7 h" for every goal set on template t (optionally only the one for metric `key`).
 function goalHint(t, key) {
-  const parts = (GOALS[t.type] ?? [])
+  const parts = goalsOf(t)
     .filter((m) => (key === undefined || m.key === key) && t.config_json.goals?.[m.key])
     .map((m) => goalText(t.config_json.goals[m.key], m));
   return parts.length ? <span className="block text-sm text-neutral-500">Cíl: {parts.join(" · ")}</span> : null;
@@ -123,7 +134,7 @@ function initialState(templates, saved) {
     else if (t.type === "social") state[t.id] = { kinds: d.kinds ?? [], battery: d.battery ?? null };
     else if (PICKS[t.type]) state[t.id] = d[PICKS[t.type].data] ?? [];
     else if (t.type === "gratitude") state[t.id] = Array.from({ length: GRATITUDE }, (_, i) => d.items?.[i] ?? "");
-    else state[t.id] = Object.fromEntries((FIELDS[t.type] ?? []).map((f) => [f.key, d[f.key] ?? empty(f)]));
+    else state[t.id] = Object.fromEntries(fieldsOf(t).map((f) => [f.key, d[f.key] ?? empty(f)]));
   }
   return state;
 }
@@ -134,12 +145,11 @@ function toResults(templates, state, savedById) {
   for (const t of templates) {
     const v = state[t.id];
     if (t.type === "sport") {
-      const minutes = showMinutes(t, savedById[t.id]);
-      const sports = Object.entries(v).map(([name, s]) => ({
-        name,
-        rpe: s.rpe,
-        ...(minutes && s.minutes !== "" && { minutes: Number(s.minutes) }),
-      }));
+      const minutes = showMinutes(t);
+      const sports = Object.entries(v).map(([name, s]) => {
+        const kept = savedById[t.id]?.sports?.find((x) => x.name === name)?.minutes; // duration switched off: keep saved minutes
+        return { name, rpe: s.rpe, ...(minutes ? s.minutes !== "" && { minutes: Number(s.minutes) } : kept != null && { minutes: kept }) };
+      });
       results.push({ template_id: t.id, data: { sports } });
       continue;
     }
@@ -148,7 +158,8 @@ function toResults(templates, state, savedById) {
       continue;
     }
     if (t.type === "social") {
-      const keepBattery = v.battery != null && !v.kinds.includes(NOBODY) && (t.config_json.battery || savedById[t.id]?.battery != null);
+      // Battery hidden (switched off): v.battery is still the saved value, so it is kept.
+      const keepBattery = v.battery != null && !v.kinds.includes(NOBODY);
       if (v.kinds.length) results.push({ template_id: t.id, data: { kinds: v.kinds, ...(keepBattery && { battery: v.battery }) } });
       continue;
     }
@@ -158,11 +169,14 @@ function toResults(templates, state, savedById) {
       continue;
     }
     const data = {};
-    for (const f of shownFields(t, savedById[t.id])) {
+    const shown = shownFields(t);
+    for (const f of shown) {
       if (v[f.key] === empty(f) || (f.needs && !filled(v, f))) continue;
       const value = toValue(f, v[f.key]);
       if (value !== "") data[f.key] = value; // whitespace-only text counts as empty
     }
+    // Switched-off / retired fields: not on screen, saved value kept as it was.
+    for (const f of fieldsOf(t)) if (!shown.includes(f) && savedById[t.id]?.[f.key] != null) data[f.key] = savedById[t.id][f.key];
     if (t.type === "fasting" && data.fasted) data.hours = fastingHours(t, savedById[t.id]);
     // Both times given, hours left empty -> computed, so nobody has to do the math.
     if (t.type === "sleep" && data.sleep_hours == null && t.config_json.hours && sleptHours(data.bedtime, data.waketime))
@@ -353,9 +367,9 @@ function NumberField({ id, label, name, value, onChange, min = 0, max, step, sli
 export default function RecordEntryModal({ templates, record, date, yesterday, onDateChange, onDone, onCancel }) {
   const savedById = Object.fromEntries((record?.results ?? []).map((r) => [r.template_id, r.result_data_json]));
   const prevById = Object.fromEntries((yesterday?.results ?? []).map((r) => [r.template_id, r.result_data_json])); // "Stejně jako včera"
-  // Active templates plus ones disabled since but holding data for this day, so saving doesn't delete it.
-  // A template added after that day has no saved result and starts empty.
-  const [active] = useState(() => templates.filter((t) => t.is_active || t.id in savedById));
+  // Only switched-on templates are offered. Saved results of switched-off ones are sent back unchanged (save),
+  // so hiding never deletes data. A template added after that day has no saved result and starts empty.
+  const [active] = useState(() => templates.filter((t) => t.is_active));
   const [mood, setMood] = useState(record?.mood_score ?? null);
   const [state, setState] = useState(() => initialState(active, savedById));
   const [note, setNote] = useState(record?.note ?? "");
@@ -421,9 +435,11 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
   async function save() {
     setSaving(true);
     try {
-      const payload = { date, mood_score: mood, note, results: toResults(active, state, savedById) };
+      const shown = new Set(active.map((t) => t.id));
+      const hidden = (record?.results ?? []).filter((r) => !shown.has(r.template_id)).map((r) => ({ template_id: r.template_id, data: r.result_data_json }));
+      const payload = { date, mood_score: mood, note, results: [...toResults(active, state, savedById), ...hidden] };
       await (record ? api(`/records/${record.id}`, "PUT", payload) : api("/records", "POST", payload));
-      setSaved(dayXP(payload.results, Object.fromEntries(active.map((t) => [t.id, t])))); // saving stays true until the modal closes, so a second tap can't save twice
+      setSaved(dayXP(payload.results, Object.fromEntries(templates.map((t) => [t.id, t])))); // saving stays true until the modal closes, so a second tap can't save twice
       navigator.vibrate?.(10);
       setTimeout(() => leave(onDone), 800);
     } catch (e) {
@@ -499,7 +515,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
               </label>
             ))}
           </div>
-          {contact && (current.config_json.battery || saved?.battery != null) && (
+          {contact && current.config_json.battery && (
             <div className="mt-4">
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-neutral-500">
                 Sociální baterie <span className="font-normal normal-case tracking-normal text-neutral-500">(dodalo ti to energii, nebo ji vzalo?)</span>
@@ -514,7 +530,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       const names = [...current.config_json.sports, OTHER];
       // Keep sports saved for this day even if they were removed from settings since.
       for (const n of Object.keys(v)) if (!names.includes(n)) names.splice(-1, 0, n);
-      const minutes = showMinutes(current, saved);
+      const minutes = showMinutes(current);
       const toggle = (name) => {
         const next = { ...v };
         if (name in next) delete next[name];
@@ -562,8 +578,8 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
         </>
       );
     }
-    if (FIELDS[current.type]) {
-      const fields = shownFields(current, saved).filter((f) => !f.needs || filled(v, f));
+    if (FIELDS[current.type] || current.type === "custom") {
+      const fields = shownFields(current).filter((f) => !f.needs || filled(v, f));
       const autoHours = current.type === "sleep" && sleptHours(v.bedtime, v.waketime);
       const setField = (key, value) => {
         const next = { ...v, [key]: value };
@@ -585,6 +601,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
               <div key={f.key}>
                 <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-neutral-500">
                   {f.label} {f.hint && <span className="font-normal normal-case tracking-normal text-neutral-500">({f.hint(current.config_json)})</span>}
+                  {goalHint(current, f.key)}
                 </p>
                 <div role="group" aria-label={f.label} className="grid grid-cols-2 gap-2">
                   {[
@@ -645,7 +662,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 ) : f.slider ? (
                   <RatingSlider name={f.label} labels={f.labels} reverse={f.reverse} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
                 ) : (
-                  <Rating label={f.label} labels={f.labels} reverse={f.reverse} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
+                  <Rating label={f.label} labels={f.labels} options={f.options} cols={f.cols} reverse={f.reverse} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
                 )}
               </div>
             ) : (
@@ -727,7 +744,8 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
             {g.templates.map((t) => (
             <section key={t.id} aria-labelledby={`entry-${t.id}`} className={card}>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 id={`entry-${t.id}`} className="text-base font-semibold">
+                <h3 id={`entry-${t.id}`} className="flex items-center gap-2 text-base font-semibold">
+                  <TemplateIcon t={t} />
                   {t.name}
                 </h3>
                 {/* Routine days: copy yesterday's answer for this section (gratitude is meant to be fresh each day). */}

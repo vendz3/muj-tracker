@@ -31,6 +31,16 @@ export const GOALS = {
   screen_time: [g("minutes", "max", "Screen time", "min", 1, 1440, 5, { per: "denně", def: 120 })],
 };
 
+// Custom templates (type "custom"): one metric "value", its goal shape derived from config_json (kind, dir, better, unit).
+function customGoals(t) {
+  const c = t.config_json;
+  const base = { key: "value", label: t.name, per: "denně" };
+  if (c.kind === "bool") return [{ ...base, dir: "min", unit: "", min: 1, max: 1, step: 1, def: 1, bool: true }];
+  if (c.kind === "rating") return [{ ...base, dir: c.better === "low" ? "max" : "min", unit: "", min: 1, max: 10, step: 1, def: c.better === "low" ? 3 : 7 }];
+  return [{ ...base, dir: c.dir === "max" ? "max" : "min", unit: c.unit ?? "", min: 0, max: 1000000, step: 0.01, def: 1 }];
+}
+export const goalsOf = (t) => (t.type === "custom" ? customGoals(t) : GOALS[t.type] ?? []);
+
 export const DIR_WORD = { min: "aspoň", max: "nejvýš", range: "" };
 
 const num = (n) => n.toLocaleString("cs-CZ", { maximumFractionDigits: 2 });
@@ -50,6 +60,7 @@ export function unitFor(meta, n) {
 // Goal in words: "aspoň 7 h", "nejvýš 2 šálky denně", "ani jednou", "2 000–2 400 kcal". meta: GOALS entry (dir, unit, nouns, per).
 export function goalText(goal, meta) {
   const per = meta.per ? ` ${meta.per}` : "";
+  if (meta.bool) return "každý den";
   if (meta.dir === "max" && goal.value === 0) return "ani jednou";
   if (meta.dir === "range") {
     const t = goal.tolerance ?? 0;
@@ -82,9 +93,10 @@ export function dayXP(results, byId) {
     const t = byId[template_id];
     if (!t || !hasData(data)) continue;
     xp += 1;
-    for (const m of GOALS[t.type] ?? []) {
+    for (const m of goalsOf(t)) {
       const goal = t.config_json.goals?.[m.key];
-      if (goal && m.period !== "week" && typeof data[m.key] === "number" && meets(data[m.key], goal, m.dir)) xp += 1;
+      const v = typeof data[m.key] === "boolean" ? Number(data[m.key]) : data[m.key]; // custom yes/no: yes = 1
+      if (goal && m.period !== "week" && typeof v === "number" && meets(v, goal, m.dir)) xp += 1;
     }
   }
   return xp;

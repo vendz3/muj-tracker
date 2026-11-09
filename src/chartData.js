@@ -1,5 +1,6 @@
 // Pure data shaping for dashboard charts (no React), so it can be checked with plain node.
-import { GOALS, goalStatus } from "./goals.js";
+import { goalsOf, goalStatus } from "./goals.js";
+import { tracked } from "./flags.js";
 import { entryOrder } from "./sections.js";
 export const DAYS = 30; // charts show the last 30 calendar days
 export const WEEK = 7; // card summaries: last 7 days vs the 7 before
@@ -252,15 +253,33 @@ const PRESENCE = {
   social: { key: "kinds", get: (d) => d.kinds, byFrequency: false },
   fasting: { key: "fasting", get: (d) => (d.fasted == null ? null : d.fasted ? ["půst"] : []), byFrequency: false, zeroFill: true },
 };
+// Custom templates (type "custom", one key "value"): numbers and 1–10 scales as bars, yes/no as a one-row grid.
+const custom = (t) => t.type === "custom" && t.config_json;
+const metricsOf = (t) => {
+  const c = custom(t);
+  if (!c) return METRICS[t.type];
+  return c.kind === "bool" ? [] : [{ ...value("value", t.name, c.kind === "number" ? c.unit ?? "" : "", A1), ...(c.better && { better: c.better }) }];
+};
+const presenceOf = (t) => {
+  const c = custom(t);
+  if (!c) return PRESENCE[t.type];
+  return c.kind === "bool" ? { key: "_", order: [t.name], get: (d) => (d.value == null ? null : d.value ? [t.name] : []), byFrequency: false } : null;
+};
+const summaryOf = (t) => {
+  const c = custom(t);
+  if (!c) return SUMMARY[t.type];
+  return c.kind === "bool" ? null : [["value", "avg", c.kind === "number" ? c.unit ?? "" : ""]];
+};
+
 export const emotionGrid = (days, t) => presenceGrid(days, t);
 export function presenceGrid(days, t) {
-  const { key, get, byFrequency, zeroFill } = PRESENCE[t.type];
+  const { key, get, byFrequency, zeroFill } = presenceOf(t);
   const data = days.map(({ record }) => {
     const d = record?.results.find((r) => r.template_id === t.id)?.result_data_json;
     return (d && get(d)) ?? (zeroFill && record ? [] : null);
   });
   if (!data.some(Boolean)) return null;
-  const order = PRESENCE[t.type].order ?? t.config_json?.[key] ?? [];
+  const order = presenceOf(t).order ?? t.config_json?.[key] ?? [];
   const total = {};
   for (const list of data) for (const e of list ?? []) total[e] = (total[e] ?? 0) + 1;
   const rank = (e) => (order.includes(e) ? order.indexOf(e) : order.length);
@@ -295,21 +314,26 @@ export function goalReport(cards) {
 // A day without the template's result (or without a metric) yields null -> gap in the line.
 export function templateCharts(days, templates) {
   const cards = [];
-  for (const t of entryOrder(templates)) {
-    const presence = PRESENCE[t.type] ? presenceGrid(days, t) : null;
+  // Switched-off templates are only hidden here; their records stay and come back when switched on.
+  for (const t of entryOrder(templates.filter((t) => t.is_active))) {
+    const presence = presenceOf(t) ? presenceGrid(days, t) : null;
     if (t.type === "emotions") {
       if (presence) cards.push({ template: t, presence, groups: [], weekGoals: [] });
       continue;
     }
-    if (!METRICS[t.type]) continue;
+    if (!metricsOf(t)) continue;
     const data = days.map(({ record }) => record?.results.find((r) => r.template_id === t.id)?.result_data_json);
     const sport = t.type === "sport" ? sportSeries(t, data) : null;
-    const metrics = sport ? sport.series : METRICS[t.type];
+    // Switched-off sub-metrics (flags.js) get no series, so no chart and no empty frame.
+    const metrics = sport ? sport.series : metricsOf(t).filter((m) => tracked(t, m.key));
+    const yesNo = custom(t)?.kind === "bool";
     const rows = days.map(({ date, record }, i) => ({
       date,
       ...(sport ? sport.rows[i] : Object.fromEntries(metrics.map((m) => [m.key, (data[i] ? m.get(data[i]) : null) ?? (m.zeroFill && record ? 0 : null)]))),
       // Activities that day (sport entries), for the weekly activity goal; "bez sportu" = 0.
       ...(t.type === "sport" && { _count: data[i] ? (data[i].sports?.length ?? 0) : null }),
+      // Custom yes/no: 1 / 0 row (no chart series), so its "every day yes" goal is scored like the others.
+      ...(yesNo && { value: data[i]?.value == null ? null : Number(data[i].value) }),
     }));
     if (t.type === "food") fillMealGap(rows, data, days, templates);
     // Hide a metric with nothing to show (never tracked, or only zeros; for counts a 0 is data, e.g. no alcohol).
@@ -325,7 +349,8 @@ export function templateCharts(days, templates) {
     // Daily goals go on charts and next to averages; weekly ones become progress meters (weekGoals).
     const goals = {};
     const weekGoals = [];
-    for (const meta of GOALS[t.type] ?? []) {
+    for (const meta of goalsOf(t)) {
+      if (meta.flag && !t.config_json[meta.flag]) continue; // goal of a switched-off sub-metric (same rule as GoalsSettings)
       const goal = t.config_json?.goals?.[meta.key];
       const rowKey = meta.rowKey ?? meta.key;
       if (!goal || !rows.some((r) => r[rowKey] != null)) continue;
@@ -335,9 +360,9 @@ export function templateCharts(days, templates) {
     }
     for (const s of series) s.goalInfo = goals[s.key];
     for (const g of groups) g.goalInfo = g.series.some((s) => s.stack) ? goals._minutes : g.series.length === 1 ? g.series[0].goalInfo : undefined;
-    const pick = SUMMARY[t.type]?.find(([key]) => rows.some((r) => r[key] != null));
+    const pick = summaryOf(t)?.find(([key]) => tracked(t, key) && rows.some((r) => r[key] != null));
     const summary = pick && weekSummary(rows, pick[0], pick[1]);
-    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), ...(t.type === "nap" && { scatter: napScatter(data) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, key: pick[0], mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
+    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), ...(t.type === "nap" && tracked(t, "grogginess") && { scatter: napScatter(data) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, key: pick[0], mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
   }
   return cards;
 }

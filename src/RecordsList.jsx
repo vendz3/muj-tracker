@@ -52,6 +52,11 @@ function summary(record, templatesById) {
       if (type === "stress") return `stres ${d.stress}`;
       if (type === "mind") return join([d.clarity != null && `jasnost ${d.clarity}`, d.energy != null && `energie ${d.energy}`, d.frustration != null && `frustrace ${d.frustration}`]);
       if (type === "nap") return `nap ${d.minutes} min` + (d.grogginess != null ? `, rozespalost ${d.grogginess}` : "");
+      if (type === "custom") {
+        const t = templatesById[template_id];
+        const unit = t.config_json.kind === "number" && t.config_json.unit ? ` ${t.config_json.unit}` : "";
+        return typeof d.value === "boolean" ? `${t.name}: ${d.value ? "ano" : "ne"}` : `${t.name} ${num(d.value)}${t.config_json.kind === "rating" ? "/10" : unit}`;
+      }
       if (type === "social") return d.kinds.join(", ") + (d.battery != null ? ` · baterie: ${BATTERY[d.battery - 1].toLowerCase()}` : "");
       return null;
     })

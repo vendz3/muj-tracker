@@ -78,3 +78,18 @@ assert(fc.quality && fc.calories && fc.alcohol && fc.caffeine && fc.sugar && fc.
 await api(`/templates/${(await api("/templates")).find((t) => t.type === "food").id}`, "PUT", { is_active: true, config_json: { ...fc, nicotine: false } });
 assert((await api("/templates")).find((t) => t.type === "food").config_json.nicotine === false, "upgrade runs once, user choice kept");
 console.log("food v3 upgrade OK");
+
+// Custom templates: numeric id, validated, survive export -> import, accept results.
+const { addTemplate } = await import("./api.js");
+const before = (await api("/templates")).length;
+const ct = await addTemplate({ name: "  Studená sprcha ", config_json: { icon: "Zap", kind: "bool", goals: { value: { value: 1 } } } });
+assert(Number.isInteger(ct.id) && ct.type === "custom" && ct.name === "Studená sprcha" && ct.is_active, "custom template created");
+assert((await api("/templates")).length === before + 1, "custom template stored");
+let bad = 0;
+for (const d of [{ name: "", config_json: { icon: "Zap", kind: "bool" } }, { name: "x", config_json: { icon: "Zap", kind: "text" } }, { name: "x".repeat(41), config_json: { icon: "Zap", kind: "bool" } }])
+  await addTemplate(d).catch(() => bad++);
+assert(bad === 3, "invalid custom templates rejected");
+await importData(await exportData());
+assert((await api("/templates")).some((t) => t.id === ct.id && t.type === "custom"), "custom template survives export -> import");
+await api("/records", "POST", { date: "2026-11-01", mood_score: 3, results: [{ template_id: ct.id, data: { value: true } }] });
+console.log("custom templates OK");

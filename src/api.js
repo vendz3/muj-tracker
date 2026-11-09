@@ -116,6 +116,16 @@ export async function api(path, method = "GET", body) {
   if (res === "templates") {
     const list = templates();
     if (method === "GET") return list;
+    if (method === "POST") {
+      // Custom template. Numeric id (max + 1): import and PUT /templates/:id rely on integer ids.
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      const c = body?.config_json;
+      if (!name || name.length > 40) throw new Error("Název musí mít 1–40 znaků");
+      if (!c || !CUSTOM_KINDS.includes(c.kind) || typeof c.icon !== "string") throw new Error("Neplatný typ šablony");
+      const t = { id: Math.max(0, ...list.map((x) => x.id)) + 1, name, type: "custom", config_json: c, is_active: true };
+      store(T, [...list, t]);
+      return t;
+    }
     const t = list.find((x) => x.id === Number(id));
     if (!t) throw new Error("Šablona nenalezena");
     Object.assign(t, { is_active: body.is_active, config_json: body.config_json });
@@ -142,6 +152,9 @@ export async function api(path, method = "GET", body) {
   if (res === "streak") return { streak: streak(records.map((r) => r.date)) };
   throw new Error(`Neznámá cesta: ${method} ${path}`);
 }
+
+export const CUSTOM_KINDS = ["bool", "number", "rating"]; // custom templates: yes/no, a number, a 1–10 scale
+export const addTemplate = (data) => api("/templates", "POST", data);
 
 export const exportData = async () => ({ tracker_templates: templates(), tracker_records: load(R) ?? [] });
 

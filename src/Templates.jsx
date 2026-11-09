@@ -1,8 +1,9 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useState } from "react";
 import { api } from "./api.js";
+import NewTemplateModal, { TemplateIcon } from "./CustomTemplate.jsx";
 import { groupTemplates } from "./sections.js";
-import { GOALS, goalText } from "./goals.js";
+import { goalsOf, goalText } from "./goals.js";
 import { card, checkRow, checkbox, input, primary } from "./ui.js";
 
 // Optional metrics per template type: [config key, label]. The day entry shows a field only if its flag is on.
@@ -146,8 +147,11 @@ export function Switch({ checked, onChange, label }) {
   );
 }
 
+const KIND_TEXT = { bool: "Ano / Ne", number: "Číslo", rating: "Škála 1–10" };
+
 export default function Templates({ templates, onChange }) {
   const [error, setError] = useState("");
+  const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState(null); // one expanded template at a time keeps the list short
 
   async function update(t, patch) {
@@ -175,6 +179,18 @@ export default function Templates({ templates, onChange }) {
 
   return (
     <section className="space-y-3">
+      <button type="button" onClick={() => setCreating(true)} className={`${primary} flex w-full items-center justify-center gap-2`}>
+        <Plus size={18} aria-hidden="true" /> Nová šablona
+      </button>
+      {creating && (
+        <NewTemplateModal
+          onCancel={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            onChange();
+          }}
+        />
+      )}
       {error && (
         <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
@@ -188,7 +204,7 @@ export default function Templates({ templates, onChange }) {
       {group.map((t) => {
         const open = openId === t.id;
         const flags = FLAGS[t.type] ?? [];
-        const goals = GOALS[t.type] ?? [];
+        const goals = goalsOf(t);
         return (
           <div key={t.id} className={card}>
             {/* Whole header toggles the panel; the switch stops propagation so it only flips is_active. */}
@@ -204,6 +220,7 @@ export default function Templates({ templates, onChange }) {
                   aria-hidden="true"
                   className={`shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180 text-accent-400" : ""}`}
                 />
+                <TemplateIcon t={t} />
                 <span className={`text-base font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
               </button>
               <Switch checked={t.is_active} label={t.name} onChange={(on) => update(t, { is_active: on })} />
@@ -223,6 +240,13 @@ export default function Templates({ templates, onChange }) {
                       items={t.config_json[LISTS[t.type].field]}
                       onChange={(list) => update(t, { config_json: { ...t.config_json, [LISTS[t.type].field]: list } })}
                     />
+                  )}
+
+                  {t.type === "custom" && (
+                    <p className="text-sm text-neutral-400">
+                      Vlastní šablona · {KIND_TEXT[t.config_json.kind]}
+                      {t.config_json.unit ? ` (${t.config_json.unit})` : ""}
+                    </p>
                   )}
 
                   {t.type === "fasting" && <FastingSettings config={t.config_json} onChange={(config_json) => update(t, { config_json })} />}
@@ -248,7 +272,7 @@ export default function Templates({ templates, onChange }) {
 
                   {goals.filter((g) => !g.flag).map((meta) => goalLine(t, meta))}
 
-                  {!LISTS[t.type] && t.type !== "fasting" && flags.length === 0 && !goals.some((g) => t.config_json.goals?.[g.key]) && (
+                  {!LISTS[t.type] && t.type !== "fasting" && t.type !== "custom" && flags.length === 0 && !goals.some((g) => t.config_json.goals?.[g.key]) && (
                     <p className="text-sm text-neutral-500">Tady není co nastavovat – stačí zapnout.</p>
                   )}
                 </div>

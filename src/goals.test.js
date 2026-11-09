@@ -15,3 +15,17 @@ assert(dayXP([{ template_id: 99, data: { x: 1 } }], byId) === 0, "deleted templa
 const records = [{ results: [{ template_id: 1, result_data_json: { liters: 3 } }] }, { results: [] }];
 assert(calculateTotalXP(records, Object.values(byId)) === 2, "total");
 console.log("goals ok");
+
+// Custom templates: yes/no, number and 1–10 scale goals.
+import { goalsOf, goalText } from "./goals.js";
+const custom = {
+  20: { id: 20, type: "custom", name: "Sprcha", config_json: { kind: "bool", goals: { value: { value: 1 } } } },
+  21: { id: 21, type: "custom", name: "Stránky", config_json: { kind: "number", unit: "str.", dir: "min", goals: { value: { value: 10 } } } },
+  22: { id: 22, type: "custom", name: "Bolest", config_json: { kind: "rating", better: "low", goals: { value: { value: 3 } } } },
+};
+assert(dayXP([{ template_id: 20, data: { value: true } }], custom) === 2, "bool yes meets goal");
+assert(dayXP([{ template_id: 20, data: { value: false } }], custom) === 1, "bool no: filled, goal missed");
+assert(dayXP([{ template_id: 21, data: { value: 12 } }], custom) === 2 && dayXP([{ template_id: 21, data: { value: 5 } }], custom) === 1, "number goal");
+assert(dayXP([{ template_id: 22, data: { value: 2 } }], custom) === 2 && dayXP([{ template_id: 22, data: { value: 8 } }], custom) === 1, "rating lower is better");
+assert(goalText({ value: 1 }, goalsOf(custom[20])[0]) === "každý den" && goalText({ value: 10 }, goalsOf(custom[21])[0]) === "aspoň 10 str. denně", "goal words");
+console.log("custom goals ok");

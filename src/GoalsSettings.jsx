@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "./api.js";
-import { DIR_WORD, GOALS, goalText, unitFor } from "./goals.js";
+import { DIR_WORD, goalsOf, goalText, unitFor } from "./goals.js";
 import { Switch } from "./Templates.jsx";
 import { card, cardTitle, input } from "./ui.js";
 
@@ -52,7 +52,8 @@ function GoalInput({ meta, goal, off, onSave, onToggle, onInvalid }) {
         </div>
         <Switch checked={!!goal} label={`Cíl ${meta.label}`} onChange={onToggle} />
       </div>
-      {goal && (
+      {goal && meta.bool && <p className="text-sm text-neutral-400">Cíl: každý den ano</p>}
+      {goal && !meta.bool && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-400">
         <span>Cíl{word ? `: ${word}` : ""}</span>
         {field(valueRef, value, setValue, `Cíl ${meta.label}`, "w-24", "–")}
@@ -82,7 +83,7 @@ export default function GoalsSettings({ templates, onChange }) {
     const goals = { ...(t.config_json.goals ?? {}) };
     const goalsOff = { ...(t.config_json.goalsOff ?? {}) };
     if (toggle === "on") {
-      const meta = GOALS[t.type].find((m) => m.key === key);
+      const meta = goalsOf(t).find((m) => m.key === key);
       goals[key] = goalsOff[key] ?? (meta.dir === "range" ? { value: meta.def, tolerance: meta.defaultTolerance } : { value: meta.def });
       delete goalsOff[key];
     } else if (toggle === "off") {
@@ -101,7 +102,7 @@ export default function GoalsSettings({ templates, onChange }) {
 
   const rows = templates
     .filter((t) => t.is_active)
-    .map((t) => [t, (GOALS[t.type] ?? []).filter((m) => !m.flag || t.config_json[m.flag])])
+    .map((t) => [t, goalsOf(t).filter((m) => !m.flag || t.config_json[m.flag])])
     .filter(([, metas]) => metas.length);
 
   return (

@@ -1,3 +1,4 @@
+import { tracked } from "./flags.js";
 // "Tvé vzorce": how one habit lines up with mood. Days split into yes / no for each rule, mood averaged per group.
 // Only shown with >= MIN_N days in both groups and a gap >= MIN_DIFF, so small samples don't read as findings.
 // It's a correlation, never claimed as cause (the UI says so).
@@ -9,14 +10,15 @@ const MAX = 4;
 // when: sentence start; a "kdy" clause carries its comma ("Ve dnech, kdy sportuješ, máš…").
 // test(data) -> true | false | null (null = not tracked that day, left out of both groups).
 // absentNo: a recorded day without this template's result counts as "no" (nobody logs 0 minutes of reading).
+// key: the sub-metric the rule reads; a switched-off one (flags.js) drops the rule.
 // lag: 1 = the habit's day vs the mood of the next day (alcohol hits the morning after).
 const RULES = [
-  { id: "sleep7", type: "sleep", when: "Ve dnech, kdy spíš aspoň 7 h,", test: (d) => (d.sleep_hours == null ? null : d.sleep_hours >= 7) },
+  { id: "sleep7", type: "sleep", key: "sleep_hours", when: "Ve dnech, kdy spíš aspoň 7 h,", test: (d) => (d.sleep_hours == null ? null : d.sleep_hours >= 7) },
   { id: "sport", type: "sport", when: "Ve dnech, kdy sportuješ,", test: (d) => (d.sports?.length ?? 0) > 0 },
-  { id: "alcohol", type: "food", when: "Den po alkoholu", lag: 1, test: (d) => (d.drinks == null ? null : d.drinks > 0) },
-  { id: "coffee3", type: "food", when: "Ve dnech se 3 a více kávami", test: (d) => (d.coffee == null ? null : d.coffee >= 3) },
-  { id: "sweets", type: "food", when: "Ve dnech se sladkostmi", test: (d) => (d.sweets == null ? null : d.sweets > 0) },
-  { id: "fastfood", type: "food", when: "Ve dnech s fast foodem", test: (d) => (d.fast_food == null ? null : d.fast_food > 0) },
+  { id: "alcohol", type: "food", key: "drinks", when: "Den po alkoholu", lag: 1, test: (d) => (d.drinks == null ? null : d.drinks > 0) },
+  { id: "coffee3", type: "food", key: "coffee", when: "Ve dnech se 3 a více kávami", test: (d) => (d.coffee == null ? null : d.coffee >= 3) },
+  { id: "sweets", type: "food", key: "sweets", when: "Ve dnech se sladkostmi", test: (d) => (d.sweets == null ? null : d.sweets > 0) },
+  { id: "fastfood", type: "food", key: "fast_food", when: "Ve dnech s fast foodem", test: (d) => (d.fast_food == null ? null : d.fast_food > 0) },
   { id: "water2", type: "water", when: "Ve dnech, kdy vypiješ aspoň 2 l,", test: (d) => (d.liters == null ? null : d.liters >= 2) },
   { id: "steps8k", type: "steps", when: "Ve dnech s 8 000+ kroky", test: (d) => (d.steps == null ? null : d.steps >= 8000) },
   { id: "screen3h", type: "screen_time", when: "Ve dnech se 3+ h u obrazovky", test: (d) => (d.minutes == null ? null : d.minutes >= 180) },
@@ -42,7 +44,7 @@ export function insights(records, templates, today = new Date()) {
   const moodOn = Object.fromEntries(recent.map((r) => [r.date, r.mood_score]));
   const out = [];
   for (const rule of RULES) {
-    const ids = new Set(templates.filter((t) => t.type === rule.type && t.is_active).map((t) => t.id));
+    const ids = new Set(templates.filter((t) => t.type === rule.type && t.is_active && (!rule.key || tracked(t, rule.key))).map((t) => t.id));
     if (!ids.size) continue;
     const groups = { yes: [], no: [] };
     for (const r of recent) {

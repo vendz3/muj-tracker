@@ -347,6 +347,7 @@ function PresenceCount({ n, of, text }) {
 const PRESENCE_UI = {
   social: { aside: (g) => <PresenceCount n={g.contactWeek} of={g.filledWeek} text="dní s kontaktem" />, words: ["ano", "vyplněno bez něj"] },
   fasting: { aside: (g) => <PresenceCount n={g.rows[0]?.week ?? 0} of={g.filledWeek} text="dní s půstem" />, words: ["půst", "bez půstu"] },
+  custom: { aside: (g) => <PresenceCount n={g.rows[0]?.week ?? 0} of={g.filledWeek} text="dní splněno" />, words: ["ano", "ne"] }, // only yes/no custom templates have a grid
 };
 
 // Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
