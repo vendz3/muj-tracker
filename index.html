@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0F172A" />
+    <link rel="icon" href="/muj-tracker/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/muj-tracker/icon.svg" />
+    <title>Life Journal</title>
+    <!-- Paint the saved theme before any module loads (themes.js caches its CSS variables here). -->
+    <script>
+      try {
+        const v = JSON.parse(localStorage.getItem("lj-theme-vars") || "{}");
+        for (const k in v) k === "color-scheme" ? (document.documentElement.style.colorScheme = v[k]) : document.documentElement.style.setProperty(k, v[k]);
+      } catch {}
+    </script>
+    <script type="module" crossorigin src="/muj-tracker/assets/index-C360qdpC.js"></script>
+    <link rel="stylesheet" crossorigin href="/muj-tracker/assets/index-CVSpUhzI.css">
+  <link rel="manifest" href="/muj-tracker/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/muj-tracker/registerSW.js"></script></head>
+  <body class="bg-neutral-950 text-neutral-100 antialiased">
+    <div id="root"></div>
+  </body>
+</html>

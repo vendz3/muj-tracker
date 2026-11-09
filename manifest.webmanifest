@@ -1,0 +1,1 @@
+{"name":"My Tracker","short_name":"Tracker","start_url":"/muj-tracker/","display":"standalone","background_color":"#09090B","theme_color":"#0F172A","lang":"en","scope":"/muj-tracker/","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
