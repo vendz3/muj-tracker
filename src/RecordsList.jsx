@@ -30,8 +30,12 @@ function summary(record, templatesById) {
           count(d.drinks, "alkohol", "bez alkoholu"),
           count(d.coffee, "káva", "bez kávy"),
           count(d.sweets, "sladké", "bez sladkého"),
+          count(d.sugary_drinks, "slazené nápoje", "bez slazených nápojů"),
+          count(d.fast_food, "fast food", "bez fast foodu"),
+          count(d.nicotine, "nikotin", "bez nikotinu"),
           d.meal_gap_h != null && `jídlo ${num(d.meal_gap_h)} h před spaním`,
-          (d.first_meal || d.last_meal) && `jídlo ${d.first_meal ?? "?"}–${d.last_meal ?? "?"}`,
+          d.first_meal && `první jídlo ${d.first_meal}`,
+          d.last_meal && `poslední jídlo ${d.last_meal}`,
           d.overate && "přejedení",
           d.slump && "útlum po jídle",
         ]);

@@ -369,8 +369,6 @@ function PresenceCount({ n, of, text }) {
 const PRESENCE_UI = {
   social: { aside: (g) => <PresenceCount n={g.contactWeek} of={g.filledWeek} text="dní s kontaktem" />, words: ["ano", "vyplněno bez něj"] },
   fasting: { aside: (g) => <PresenceCount n={g.rows[0]?.week ?? 0} of={g.filledWeek} text="dní s půstem" />, words: ["půst", "bez půstu"] },
-  // Food keeps its kcal headline; the after-meal grid sits under the food charts, titled.
-  food: { words: ["ano", "vyplněno bez něj"], keepSummary: true, after: "Po jídle" },
 };
 
 // Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
@@ -519,7 +517,7 @@ function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, we
         <div key={g.scale}>
           {(g.scale === "score" && g.series.length > 1) || g.scale === "count" || g.scale === "treat" || g.scale === "clock" ? (
             <>
-              <p className="mb-1 text-xs text-neutral-500">{{ count: "Co jsi jedl(a) · porce za den", treat: "Pochutiny · počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
+              <p className="mb-1 text-xs text-neutral-500">{{ count: "Co jsi jedl(a) · porce za den", treat: "Neřesti · počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
               <ScoreRows rows={g.rows} series={g.series} title={template.name} scale={g.scale} />
             </>
           ) : (

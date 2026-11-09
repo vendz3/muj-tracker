@@ -38,20 +38,18 @@ export const METRICS = {
   sport: [], // drawn by sportSeries(): stacked minutes or activities per sport
   // better: which end of the 1–5 scale is the good one (shown as "méně = lépe" where it isn't the usual high).
   food: [
-    count("veg", "Zelenina", A2, "high"),
-    count("protein", "Bílkovina", A1, "high"),
-    count("processed", "Zpracované", A3),
+    { ...score("quality", "Kvalita", A1), better: "high" },
+    value("calories", "Příjem", "kcal", A1),
     treat("drinks", "Alkohol", A4),
     treat("coffee", "Kofein", A1),
     treat("sweets", "Sladkosti", A3),
-    clock("first_meal", "První jídlo", A1),
+    treat("sugary_drinks", "Slazené nápoje", A2),
+    treat("fast_food", "Fast food", A4),
+    treat("nicotine", "Nikotin", A1),
     clock("last_meal", "Poslední jídlo", A2),
-    // Own scale "hours": eating window and hours before sleep (meal_gap_h, computed from the next day's bedtime
-    // in templateCharts when only meal times were entered) must not share the kcal axis.
-    { ...value("eating_window", "Okno jídla", "h", A1, (d) => (d.first_meal && d.last_meal ? toClock(d.last_meal) - toClock(d.first_meal) : null)), scale: "hours" },
+    // Own scale "hours": hours before sleep (computed from the next day's bedtime in templateCharts) must not share
+    // the kcal axis.
     { ...value("meal_gap_h", "Jídlo před spaním", "h", A2), scale: "hours" },
-    value("calories", "Příjem", "kcal", A1),
-    { ...score("quality", "Kvalita", A1), better: "high" },
   ],
   mind: [
     { ...score("clarity", "Jasnost", A1), better: "high" },
@@ -255,12 +253,6 @@ const PRESENCE = {
   emotions: { key: "emotions", get: (d) => d.emotions, byFrequency: true },
   social: { key: "kinds", get: (d) => d.kinds, byFrequency: false },
   fasting: { key: "fasting", get: (d) => (d.fasted == null ? null : d.fasted ? ["půst"] : []), byFrequency: false, zeroFill: true },
-  // Food: how the day's eating felt afterwards (yes / no answers), drawn under the food charts.
-  food: {
-    key: "after_meal", order: ["přejedení", "útlum"],
-    get: (d) => (d.overate == null && d.slump == null ? null : [d.overate && "přejedení", d.slump && "útlum"].filter(Boolean)),
-    byFrequency: false,
-  },
 };
 export const emotionGrid = (days, t) => presenceGrid(days, t);
 export function presenceGrid(days, t) {

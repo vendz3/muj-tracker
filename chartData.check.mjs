@@ -40,7 +40,7 @@ assert.equal(sport.series[0].format(30, sport.rows[3]), "30 min · RPE 2");
 assert.deepEqual(cards.sport.groups.map((g) => g.scale), ["value"]); // no fragmented RPE line
 assert.deepEqual(cards.sport.summary, { value: 30, delta: null, mode: "sum", unit: "min" });
 // Food: partial days (only calories / no calories) -> null for the missing metric; never-tracked metrics hidden.
-assert.deepEqual(cards.food.groups.map((g) => g.scale), ["treat", "value", "score"]);
+assert.deepEqual(cards.food.groups.map((g) => g.scale), ["score", "value", "treat"]);
 assert.deepEqual(cards.food.groups.find((g) => g.scale === "treat").series.map((s) => s.key), ["drinks"]); // 0 drinks is data, stays visible
 assert.deepEqual(col("food", "treat", "drinks"), [0, null, null, null]);
 assert.equal(METRICS.food.find((m) => m.key === "drinks").format(5), "5+");
@@ -73,7 +73,7 @@ const mins = templateCharts(lastDays(mixed, today), [{ id: 9, type: "sport", con
 assert.deepEqual(mins.groups[0].rows.map((r) => r._minutes), [60, 0]);
 assert.equal(mins.summary.unit, "min");
 assert.deepEqual([1, 2, 4, 5, 0].map(activities), ["aktivita", "aktivity", "aktivity", "aktivit", "aktivit"]);
-assert.deepEqual(METRICS.food.filter((m) => m.better === "low").map((m) => m.key), ["processed", "drinks", "coffee", "sweets"]);
+assert.deepEqual(METRICS.food.filter((m) => m.better === "low").map((m) => m.key), ["drinks", "coffee", "sweets", "sugary_drinks", "fast_food", "nicotine"]);
 
 // weekSummary: avg/sum over the last 7 rows, nulls skipped, delta only with a full previous week.
 const r = (vals) => vals.map((v) => ({ v }));
@@ -270,17 +270,17 @@ assert.deepEqual(groupTemplates(all).map((g) => g.title), [...SECTIONS.map((s) =
 assert.deepEqual(groupTemplates([{ id: 1, type: "sleep" }]).map((g) => g.title), ["Noc a ráno"]);
 console.log("OK sections");
 
-// Food v2: eating window from meal times; hours before sleep from the next day's bedtime; after-meal grid.
-const FD = { id: 3, type: "food", config_json: { meal_times: true, overate: true, slump: true } };
+// Food v3: quality + calories + six vices + last meal; hours before sleep from the next day's bedtime.
+const FD = { id: 3, type: "food", config_json: { meal_times: true } };
 const SLP = { id: 1, type: "sleep", config_json: { times: true } };
 const frecs = [
-  rec("2026-11-05", [[3, { first_meal: "08:00", last_meal: "19:30", overate: true, slump: false }]]),
-  rec("2026-11-06", [[1, { bedtime: "23:30" }], [3, { last_meal: "20:00", meal_gap_h: 2, overate: false, slump: true }]]),
+  rec("2026-11-05", [[3, { last_meal: "19:30", nicotine: 0, fast_food: 1 }]]),
+  rec("2026-11-06", [[1, { bedtime: "23:30" }], [3, { last_meal: "20:00", meal_gap_h: 2 }]]),
   rec("2026-11-07", [[1, { bedtime: "00:30" }], [3, { last_meal: "20:00" }]]),
 ];
 const fdc = templateCharts(lastDays(frecs, today), [FD, SLP]).find((c) => c.template.type === "food");
-assert.deepEqual(fdc.rows.map((r) => r.eating_window), [11.5, null, null]);
 assert.deepEqual(fdc.rows.map((r) => r.meal_gap_h), [4, 2, null]); // 19:30 -> 23:30 next night; typed 2 kept; no next day
-assert.deepEqual(fdc.presence.rows.map((r) => [r.name, r.cells]), [["přejedení", [true, false, null]], ["útlum", [false, true, null]]]);
-assert.equal(METRICS.food.find((m) => m.key === "veg").better, "high");
-console.log("OK food v2");
+assert.deepEqual(fdc.groups.find((g) => g.scale === "treat").series.map((s) => s.key), ["fast_food", "nicotine"]); // 0 nicotine is data
+assert.equal(fdc.presence, undefined); // after-meal grid retired
+assert.ok(!METRICS.food.some((m) => ["veg", "protein", "processed", "first_meal", "eating_window"].includes(m.key)));
+console.log("OK food v3");
