@@ -279,7 +279,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
             {names.map((name) => (
               <label key={name} className={checkRow}>
                 <input type="checkbox" className={checkbox} checked={v.includes(name)} onChange={() => toggle(name)} />
-                <span className="capitalize">{name}</span>
+                <span className="first-letter:uppercase">{name}</span>
               </label>
             ))}
           </div>
@@ -353,7 +353,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
               <div key={name}>
                 <label className={checkRow}>
                   <input type="checkbox" className={checkbox} checked={name in v} onChange={() => toggle(name)} />
-                  <span className="capitalize">{name}</span>
+                  <span className="first-letter:uppercase">{name}</span>
                 </label>
                 {name in v && (
                   <div className="mt-2 mb-3 space-y-2 pl-2">

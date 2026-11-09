@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, weekDays, weekSummary, withRollingAvg } from "./src/chartData.js";
+import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -148,7 +148,7 @@ assert.equal(goalReport([{ rows: [], goals: [{ ...daily, status: { met: 0, of: 0
 console.log("OK goalReport");
 
 // Every new numeric template gets a card with a headline (SUMMARY entry) instead of crashing.
-for (const [type, key] of [["steps", "steps"], ["fasting", "hours"], ["screen_time", "minutes"], ["reading", "minutes"], ["meditation", "minutes"], ["stress", "stress"]]) {
+for (const [type, key] of [["steps", "steps"], ["screen_time", "minutes"], ["reading", "minutes"], ["meditation", "minutes"], ["stress", "stress"]]) {
   const t = { id: 1, type, name: type, config_json: {} };
   const ds = ["2026-11-07", "2026-11-08"].map((date) => ({ date, record: { results: [{ template_id: 1, result_data_json: { [key]: 3 } }] } }));
   const [c] = templateCharts(ds, [t]);
@@ -237,3 +237,20 @@ const NP = { id: 15, type: "nap", config_json: { grogginess: true } };
 const np = templateCharts(lastDays([rec("2026-11-05", [[15, { minutes: 20, grogginess: 2 }]]), rec("2026-11-07", [])], today), [NP])[0];
 assert.deepEqual(np.rows.map((r) => r.minutes), [20, null, 0]);
 console.log("OK clock, load, social, nap");
+
+// Fasting: yes/no per day as a one-row grid; no bars of a constant 16 h.
+const FA = { id: 7, type: "fasting", config_json: { full_day: false, hours: 16 } };
+const fa = templateCharts(lastDays([rec("2026-11-05", [[7, { fasted: true, hours: 16 }]]), rec("2026-11-06", [[7, { fasted: false }]]), rec("2026-11-07", [])], today), [FA])[0];
+assert.deepEqual(fa.presence.rows.map((r) => [r.name, r.cells]), [["půst", [true, false, false]]]); // 7.: recorded, no fast
+assert.equal(fa.presence.filledWeek, 3);
+assert.deepEqual(fa.groups, []);
+// Nap: groups follow the metric order -> minutes first.
+assert.deepEqual(np.groups.map((g) => g.scale), ["value", "score"]);
+// Weekly x ticks end on the last row, 7 days apart.
+const wt = weeklyTicks([...Array(30)].map((_, i) => ({ date: `d${i}` })));
+assert.deepEqual(wt, ["d1", "d8", "d15", "d22", "d29"]);
+console.log("OK fasting grid, nap order, weekly ticks");
+// A window with only non-fasting days: grid without rows, no crash.
+const faNo = templateCharts(lastDays([rec("2026-11-06", [[7, { fasted: false }]])], today), [FA])[0];
+assert.deepEqual([faNo.presence.rows, faNo.presence.filledWeek, faNo.presence.top], [[], 1, null]);
+console.log("OK fasting without fasts");

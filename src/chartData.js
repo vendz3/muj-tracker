@@ -54,12 +54,12 @@ export const METRICS = {
   // avgLine: dotted average line in the chart; zeroFill: a recorded day without the metric counts as 0 (not done),
   // a day with no record at all stays unfilled.
   steps: [{ ...value("steps", "Kroky", "kroků", A1), avgLine: true }],
-  fasting: [value("hours", "Půst", "h", A1)],
+  fasting: [], // drawn as a presence grid (PRESENCE.fasting)
   screen_time: [{ ...value("minutes", "Čas u obrazovky", "min", A1), avgLine: true }],
   // shortcut: pages aren't charted (another unit on the same axis); they show in Záznamy. Chart them if asked.
   reading: [{ ...value("minutes", "Čtení", "min", A1), zeroFill: true }], // only reading days get written down
   meditation: [{ ...value("minutes", "Meditace", "min", A1), zeroFill: true }], // modal saves only >= 1 min
-  stress: [{ ...score("stress", "Stres", A2), better: "low" }],
+  stress: [{ ...score("stress", "Stres", A3), better: "low" }], // warm "caution" hue, not the reward accent
 };
 
 // Czech plural for counted activities: 1 aktivita, 2–4 aktivity, 0 / 5+ aktivit.
@@ -72,7 +72,6 @@ const SUMMARY = {
   food: [["calories", "avg", "kcal"], ["quality", "avg", ""]],
   water: [["liters", "avg", "l"]],
   steps: [["steps", "avg", "kroků"]],
-  fasting: [["hours", "avg", "h"]],
   screen_time: [["minutes", "avg", "min"]],
   // Daily goals (goals.js) compare per day, so the headline is the daily average too.
   reading: [["minutes", "avg", "min"]],
@@ -126,6 +125,9 @@ export function weekDays(records, offset = 0, today = new Date()) {
     return { date, record: byDate[date] ?? null };
   });
 }
+
+// X-axis ticks every 7 days ending with the last row, so every chart in a card shows the same dates.
+export const weeklyTicks = (rows) => rows.filter((_, i) => (rows.length - 1 - i) % WEEK === 0).map((r) => r.date);
 
 // Adds `${key}_ma` = average of the last `n` rows' values (needs >= minN filled), the readable trend under noisy
 // daily 1–5 scores. Rows are copied, the input is not touched.
@@ -208,11 +210,21 @@ function sportSeries(t, data) {
 // Emotions: categories without a scale -> presence grid. One row per emotion felt in the window, ordered by
 // how often (ties keep settings order); cells: true = felt, false = day filled without it, null = not filled.
 // Social contact uses the same grid, keyed "kinds", rows in settings order (depth / group size), not by frequency.
-const PRESENCE = { emotions: { key: "emotions", byFrequency: true }, social: { key: "kinds", byFrequency: false } };
+// Fasting is a yes/no day (the hours are fixed in settings), so it is a one-row grid too, not bars of a constant.
+// get: result -> list of names present that day (null = not filled); key: config list giving the row order.
+// zeroFill: a recorded day without the result counts as "none" (like reading: only fasting days get noted).
+const PRESENCE = {
+  emotions: { key: "emotions", get: (d) => d.emotions, byFrequency: true },
+  social: { key: "kinds", get: (d) => d.kinds, byFrequency: false },
+  fasting: { key: "fasting", get: (d) => (d.fasted == null ? null : d.fasted ? ["půst"] : []), byFrequency: false, zeroFill: true },
+};
 export const emotionGrid = (days, t) => presenceGrid(days, t);
 export function presenceGrid(days, t) {
-  const { key, byFrequency } = PRESENCE[t.type];
-  const data = days.map(({ record }) => record?.results.find((r) => r.template_id === t.id)?.result_data_json?.[key] ?? null);
+  const { key, get, byFrequency, zeroFill } = PRESENCE[t.type];
+  const data = days.map(({ record }) => {
+    const d = record?.results.find((r) => r.template_id === t.id)?.result_data_json;
+    return (d && get(d)) ?? (zeroFill && record ? [] : null);
+  });
   if (!data.some(Boolean)) return null;
   const order = t.config_json?.[key] ?? [];
   const total = {};
@@ -223,7 +235,7 @@ export function presenceGrid(days, t) {
   const rows = names.map((name) => ({ name, total: total[name], week: week(name), cells: data.map((list) => (list ? list.includes(name) : null)) }));
   const top = [...rows].sort((a, b) => b.week - a.week || b.total - a.total)[0];
   const contactWeek = data.slice(-WEEK).filter((list) => list?.some((k) => k !== "nikdo")).length; // social: days with real contact
-  return { dates: days.map((d) => d.date), rows, top: top.week ? top.name : null, filledWeek: data.slice(-WEEK).filter(Boolean).length, contactWeek };
+  return { dates: days.map((d) => d.date), rows, top: top?.week ? top.name : null, filledWeek: data.slice(-WEEK).filter(Boolean).length, contactWeek };
 }
 
 // Overview goal evaluation over templateCharts() cards: rate 0–1 per goal (daily: met / filled days, weekly:
@@ -269,7 +281,8 @@ export function templateCharts(days, templates) {
     // Copies, so per-card fields (goalInfo, avg) never leak into the shared METRICS objects.
     const series = metrics.filter((m) => rows.some((r) => (m.scale === "count" ? r[m.key] != null : r[m.key] > 0))).map((m) => ({ ...m }));
     for (const s of series) if (s.avgLine) s.avg = weekSummary(rows, s.key, "avg", rows.length)?.value;
-    const groups = ["score", "count", "clock", "value", "hours"]
+    // Groups in the order their metrics are listed (nap: minutes first, grogginess under them).
+    const groups = [...new Set(metrics.map((m) => m.scale))]
       .map((scale) => ({ scale, series: series.filter((m) => m.scale === scale), rows }))
       .filter((g) => g.series.length);
     if (!groups.length && !presence) continue; // social: the presence grid alone is enough for a card
@@ -287,7 +300,7 @@ export function templateCharts(days, templates) {
     }
     for (const s of series) s.goalInfo = goals[s.key];
     for (const g of groups) g.goalInfo = g.series.some((s) => s.stack) ? goals._minutes : g.series.length === 1 ? g.series[0].goalInfo : undefined;
-    const pick = SUMMARY[t.type].find(([key]) => rows.some((r) => r[key] != null));
+    const pick = SUMMARY[t.type]?.find(([key]) => rows.some((r) => r[key] != null));
     const summary = pick && weekSummary(rows, pick[0], pick[1]);
     cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
   }

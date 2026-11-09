@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, withRollingAvg } from "./chartData.js";
+import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks, withRollingAvg } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { card } from "./ui.js";
 
@@ -114,24 +114,27 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
   const lo = Math.floor(Math.min(...clockVals)), hi = Math.max(Math.ceil(Math.max(...clockVals)), Math.floor(Math.min(...clockVals)) + 1);
   const clockTicks = isClock && clockVals.length ? Array.from({ length: Math.floor((hi - lo) / (hi - lo > 4 ? 2 : 1)) + 1 }, (_, i) => lo + i * (hi - lo > 4 ? 2 : 1)) : undefined;
   // Daily 1–5 scores zigzag; a 7-day rolling average carries the trend, the daily points stay as faint context.
-  const trend = isScore && !week;
+  // Only for dense series (filled on >= half the days): over sparse data (naps) the average breaks into fragments.
+  const trend = isScore && !week && series.every((s) => rows.filter((r) => r[s.key] != null).length >= rows.length / 2);
   const data = trend ? withRollingAvg(rows, series.map((s) => s.key)) : rows;
   return (
     <div role="img" aria-label={label} style={{ height }} className="w-full">
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ top: compact ? 6 : 8, right: 4, bottom: showXAxis ? 0 : 6, left: isClock ? -12 : -24 }}>
+        {/* right: room for the last date label ("9. 11."), which sits on the right edge. */}
+        <ComposedChart data={data} margin={{ top: compact ? 6 : 8, right: 14, bottom: showXAxis ? 0 : 6, left: isClock ? -12 : -24 }}>
           <CartesianGrid stroke={c.grid} vertical={false} />
-          <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} minTickGap={week ? 0 : 16} interval={week ? 0 : "preserveEnd"} hide={!showXAxis} />
+          {/* Same weekly dates on every chart of a card (big charts and small rows alike). */}
+          <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} ticks={week ? undefined : weeklyTicks(rows)} interval={0} hide={!showXAxis} />
           <YAxis
             domain={isScore ? [1, 5] : isClock ? [clockTicks?.[0] ?? 0, clockTicks?.at(-1) ?? 24] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
             tickCount={5}
             ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : isClock ? clockTicks : intTop ? (compact ? [0, intTop] : [...Array(intTop + 1).keys()]) : undefined}
             interval={compact ? 0 : "preserveEnd"} // short rows: recharts would drop the 1/3 labels as "overlapping"
             allowDecimals={!isScore}
-            tick={tick}
+            tick={series[0]?.axis ? { ...tick, fontSize: 14 } : tick}
             stroke={c.axis}
             width={52}
-            tickFormatter={isScore ? undefined : isClock ? fmtClock : axisNum}
+            tickFormatter={series[0]?.axis ?? (isScore ? undefined : isClock ? fmtClock : axisNum)}
           />
           <Tooltip content={<ChartTooltip series={series} />} cursor={isLine ? { stroke: c.cursor } : { fill: c.cursor, fillOpacity: 0.15 }} />
           {series.length > 1 && !compact && (
@@ -195,7 +198,8 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
                 isAnimationActive={false}
               />
             ))}
-          {g && goal.dir !== "range" && (
+          {/* "≤ 0" (e.g. no alcohol) would sit on the x axis and vanish into it: the text status carries it. */}
+          {g && goal.dir !== "range" && !(goal.dir === "max" && g.value === 0) && (
             <ReferenceLine y={g.value} stroke={c.goalInk} strokeWidth={1} strokeDasharray="4 3" />
           )}
           {/* Range edges drawn over the bars, so the band still reads where bars cover it. */}
@@ -209,7 +213,8 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
   );
 }
 
-const MOOD = [{ key: "mood", label: "Nálada", color: "mood", scale: "score", format: (v) => `${MOODS[v - 1]} ${v}` }];
+// axis: the 1–5 mood axis reads as faces, the tooltip keeps the number.
+const MOOD = [{ key: "mood", label: "Nálada", color: "mood", scale: "score", format: (v) => `${MOODS[v - 1]} ${v}`, axis: (v) => MOODS[v - 1] }];
 
 // Big number + change vs the previous week. Arrow and sign are text, so the trend never relies on color.
 const statNum = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("cs-CZ") : num(v));
@@ -219,18 +224,22 @@ function Summary({ summary }) {
   const unitFor = (n) => (typeof unit === "function" ? unit(Math.round(Math.abs(n))) : unit);
   const u = unitFor(value) ? ` ${unitFor(value)}` : "";
   const du = delta != null && unitFor(delta) ? ` ${unitFor(delta)}` : "";
-  const flat = delta != null && Math.abs(delta) < (Math.abs(value) >= 100 ? 1 : 0.05);
+  // Whole numbers for kcal / minutes / steps (and anything >= 100), headline and trend alike: "+44 kcal", not "+43,9".
+  const whole = ["kcal", "min", "kroků"].includes(unitFor(value)) || Math.abs(value) >= 100;
+  const fmt = whole ? (n) => Math.round(n).toLocaleString("cs-CZ") : statNum;
+  const flat = delta != null && Math.abs(delta) < (whole ? 0.5 : 0.05);
   const trend =
-    delta == null ? `za ${WEEK} dní` : flat ? "→ beze změny" : `${delta > 0 ? "↑ +" : "↓ −"}${statNum(Math.abs(delta))}${du} vs. předchozích ${WEEK}`;
+    delta == null ? `za ${WEEK} dní` : flat ? "→ beze změny" : `${delta > 0 ? "↑ +" : "↓ −"}${fmt(Math.abs(delta))}${du} vs. předchozích ${WEEK}`;
   return (
     <div className="text-right">
       <p className="text-lg leading-tight font-semibold text-neutral-100">
         {mode === "avg" ? "Ø " : ""}
-        {statNum(value)}
+        {fmt(value)}
         {u}
         {mode === "sum" && <span className="text-sm font-normal text-neutral-400"> / {WEEK} dní</span>}
       </p>
-      <p className="text-xs text-neutral-500">{trend}</p>
+      {/* A weekly total already says "/ 7 dní"; repeat the window only when there is a trend to show. */}
+      {!(mode === "sum" && delta == null) && <p className="text-xs text-neutral-500">{trend}</p>}
       {summary.goalInfo && (
         <p className="text-xs">
           <GoalStatus info={summary.goalInfo} />
@@ -305,7 +314,7 @@ function EmotionGrid({ grid, title, words = ["cítil(a)", "vyplněno bez ní"] }
       <div className="space-y-1.5">
         {grid.rows.map((r) => (
           <div key={r.name} className="flex items-center">
-            <span className="w-24 shrink-0 truncate pr-2 text-sm text-neutral-200 capitalize">{r.name}</span>
+            <span className="w-24 shrink-0 truncate pr-2 text-sm text-neutral-200 first-letter:uppercase">{r.name}</span>
             <span className="grid flex-1 items-center" style={cols}>
               {r.cells.map((felt, i) => (
                 <span key={grid.dates[i]} className="flex h-5 items-center justify-center" title={`${r.name} · ${dayLabel(grid.dates[i])}${felt == null ? " · nevyplněno" : felt ? "" : " · ne"}`}>
@@ -342,17 +351,24 @@ function EmotionGrid({ grid, title, words = ["cítil(a)", "vyplněno bez ní"] }
   );
 }
 
-// Social: days with real contact (anything but "nikdo") out of the filled ones.
-function ContactDays({ grid }) {
+// Headline "n/filled" over the last 7 days: social = days with real contact, fasting = fasting days.
+function PresenceCount({ n, of, text }) {
   return (
     <div className="text-right">
       <p className="text-lg leading-tight font-semibold text-neutral-100">
-        {grid.contactWeek}/{grid.filledWeek}
+        {n}/{of}
       </p>
-      <p className="text-xs text-neutral-500">dní s kontaktem za {WEEK} dní</p>
+      <p className="text-xs text-neutral-500">
+        {text} za {WEEK} dní
+      </p>
     </div>
   );
 }
+// Per presence type: card headline and the grid legend [present, filled without it].
+const PRESENCE_UI = {
+  social: { aside: (g) => <PresenceCount n={g.contactWeek} of={g.filledWeek} text="dní s kontaktem" />, words: ["ano", "vyplněno bez něj"] },
+  fasting: { aside: (g) => <PresenceCount n={g.rows[0]?.week ?? 0} of={g.filledWeek} text="dní s půstem" />, words: ["půst", "bez půstu"] },
+};
 
 // Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
 function LoadLine({ load, timed }) {
@@ -376,7 +392,7 @@ function LoadLine({ load, timed }) {
 function EmotionTop({ grid }) {
   return (
     <div className="text-right">
-      <p className="text-lg leading-tight font-semibold text-neutral-100 capitalize">{grid.top ?? "–"}</p>
+      <p className="text-lg leading-tight font-semibold text-neutral-100 first-letter:uppercase">{grid.top ?? "–"}</p>
       <p className="text-xs text-neutral-500">{grid.top ? `nejčastěji za ${WEEK} dní` : `za ${WEEK} dní bez záznamu`}</p>
     </div>
   );
@@ -550,7 +566,7 @@ function SportRings({ group, goals }) {
         {per.map((s) => (
           <p key={s.key} className="flex items-center gap-2 text-neutral-200">
             <span className="size-2.5 shrink-0 rounded-full" style={{ background: paint(c, s.color) }} aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate capitalize">{s.label}</span>
+            <span className="block min-w-0 flex-1 truncate first-letter:uppercase">{s.label}</span>
             <b className="font-semibold">{statNum(s.total)}</b>
             <span className="whitespace-nowrap text-xs text-neutral-500">
               {unit(s.total)} · {pct(s.total)} %
@@ -652,12 +668,13 @@ export default function Dashboard({ records, templates }) {
               <CardHeader
                 title={chart.template.name}
                 summary={chart.summary}
-                aside={chart.presence && (chart.template.type === "social" ? <ContactDays grid={chart.presence} /> : <EmotionTop grid={chart.presence} />)}
+                aside={chart.presence && (PRESENCE_UI[chart.template.type]?.aside(chart.presence) ?? <EmotionTop grid={chart.presence} />)}
               />
-              {chart.presence && (
-                <EmotionGrid grid={chart.presence} title={chart.template.name} words={chart.template.type === "social" ? ["ano", "vyplněno bez něj"] : undefined} />
-              )}
-              <CardBody chart={chart} />
+              {chart.presence && <EmotionGrid grid={chart.presence} title={chart.template.name} words={PRESENCE_UI[chart.template.type]?.words} />}
+              {/* Space between the grid's legend and the charts under it (social battery). */}
+              <div className={chart.presence && chart.groups.length ? "mt-5" : ""}>
+                <CardBody chart={chart} />
+              </div>
             </>
           )}
         </section>
