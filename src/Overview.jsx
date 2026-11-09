@@ -181,8 +181,7 @@ function SummaryCard({ records, report, dates, onEdit }) {
   const headline = thin ? "Zatím málo dat" : up ? `Největší posun: ${up.info.label} ↑` : top ? `Nejvíc ti jde: ${top.info.label}` : `Plnění cílů za ${WEEK} dní`;
   return (
     <section className={card}>
-      <h2 className={cardTitle}>Tvůj týden</h2>
-      <p className={`mb-3 ${cardDesc}`}>Posledních {WEEK} dní: jak plníš cíle a jaká byla nálada</p>
+      <h2 className={`${cardTitle} mb-3`}>Tvůj týden</h2>
       {score != null && (
         <div className="mb-3 flex items-center gap-4">
           <div className="relative size-24 shrink-0" role="img" aria-label={`Plnění cílů ${pct(score)}`}>
@@ -310,9 +309,7 @@ function GoalsCard({ items, dates, onNavigate }) {
     );
   return (
     <section className={card}>
-      <h2 className={cardTitle}>Cíle</h2>
-      <p className={cardDesc}>Plnění za posledních {WEEK} dní · nahoře ty, které potřebují pozornost</p>
-      {/* Legend for the day dots in DayGoalRow (same shapes). */}
+      <h2 className={cardTitle}>Cíle</h2>      {/* Legend for the day dots in DayGoalRow (same shapes). */}
       <p className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${cardDesc}`} aria-hidden="true">
         <span className="flex items-center gap-1"><span className="size-2.5 rounded-full bg-accent2" /> splněno</span>
         <span className="flex items-center gap-1"><span className="size-2.5 rounded-full ring-2 ring-neutral-600 ring-inset" /> nesplněno</span>
