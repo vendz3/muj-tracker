@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Theme tokens beyond Tailwind's palette. Defaults = "midnight" theme; themes.js applyTheme() overrides them
+   (and the neutral-* / violet-* scales) as inline variables on <html>. */
+@theme {
+  --color-on-accent: #ffffff;
+  --color-accent2: #34d399;
+  --color-accent2-text: #34d399;
+  --color-line: #334155;
+  --color-shade: #00000066;
+  --animate-slide-up: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
