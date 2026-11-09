@@ -1,6 +1,8 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, WEEK, lastDays, templateCharts, weekSummary } from "./chartData.js";
+import { DAYS, WEEK, activities, lastDays, templateCharts, weekDays, weekSummary } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { card } from "./ui.js";
 
@@ -9,9 +11,9 @@ import { card } from "./ui.js";
 const tint = (v) => `color-mix(in srgb, var(${v}) 40%, var(--color-neutral-900))`;
 // --chart-n is set per card from the theme's palette (cycleVars); themes without one leave it invalid -> fallback.
 const C = {
-  a1: "var(--chart-1, var(--color-violet-500))", a2: "var(--chart-2, var(--color-accent2))",
-  a3: `var(--chart-3, ${tint("--color-violet-500")})`, a4: `var(--chart-4, ${tint("--color-accent2")})`,
-  gray: "var(--color-neutral-600)", mood: "var(--color-violet-400)",
+  a1: "var(--chart-1, var(--color-accent-500))", a2: "var(--chart-2, var(--color-accent2))",
+  a3: `var(--chart-3, ${tint("--color-accent-500")})`, a4: `var(--chart-4, ${tint("--color-accent2")})`,
+  gray: "var(--color-neutral-600)", mood: "var(--color-accent-400)",
   surface: "var(--color-neutral-900)", grid: "var(--color-neutral-800)", axis: "var(--color-neutral-700)",
   tick: "var(--color-neutral-500)", cursor: "var(--color-neutral-700)", goalInk: "var(--color-neutral-400)",
 };
@@ -22,6 +24,7 @@ const paint = (c, role) => c[role] ?? role;
 const num = (n) => n.toLocaleString("cs-CZ", { maximumFractionDigits: 1 });
 const axisNum = (n) => (n >= 1000 ? `${num(n / 1000)}k` : num(n)); // "2 400" would not fit the narrow axis
 const shortDate = (iso) => new Date(iso).toLocaleDateString("cs-CZ", { day: "numeric", month: "numeric" });
+const weekTick = (iso) => new Date(iso).toLocaleDateString("cs-CZ", { weekday: "short", day: "numeric" }); // "po 3."
 const longDate = (iso) => new Date(iso).toLocaleDateString("cs-CZ", { weekday: "short", day: "numeric", month: "numeric", year: "numeric" });
 
 function ChartTooltip({ active, payload, label, series }) {
@@ -94,11 +97,13 @@ function GoalStatus({ info, short = false }) {
 // One chart for one scale group. Lines for 1–5 scores (gaps where null), bars for amounts.
 // compact: small-multiple row (no legend, x-axis only when showXAxis, 1–5 axis reduced to 1/3/5).
 // goal: goalInfo from chartData (line for at least / at most, band for a range).
-export function TemplateChart({ rows, series, scale, height = 160, label, compact = false, showXAxis = true, goal }) {
+// week: 7-day chart, every day labelled with its weekday. series[0].avg: dotted average line (one-series charts).
+export function TemplateChart({ rows, series, scale, height = 160, label, compact = false, showXAxis = true, goal, week = false }) {
   const isScore = scale === "score";
   const c = useColors();
   const tick = { fill: c.tick, fontSize: 11 };
   const g = goal?.goal;
+  const avg = series.length === 1 ? series[0].avg : null;
   // Counts (sport activities): whole-number axis 0, 1, 2… sized to the tallest stacked day.
   const intTop = series.some((s) => s.integer) ? Math.max(2, ...rows.map((r) => series.reduce((a, s) => a + (r[s.key] ?? 0), 0))) : null;
   return (
@@ -106,11 +111,11 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
       <ResponsiveContainer>
         <ComposedChart data={rows} margin={{ top: compact ? 6 : 8, right: 4, bottom: showXAxis ? 0 : 6, left: -24 }}>
           <CartesianGrid stroke={c.grid} vertical={false} />
-          <XAxis dataKey="date" tickFormatter={shortDate} tick={tick} stroke={c.axis} minTickGap={16} hide={!showXAxis} />
+          <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} minTickGap={week ? 0 : 16} interval={week ? 0 : "preserveEnd"} hide={!showXAxis} />
           <YAxis
             domain={isScore ? [1, 5] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
             tickCount={5}
-            ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : intTop ? [...Array(intTop + 1).keys()] : undefined}
+            ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : intTop ? (compact ? [0, intTop] : [...Array(intTop + 1).keys()]) : undefined}
             interval={compact ? 0 : "preserveEnd"} // short rows: recharts would drop the 1/3 labels as "overlapping"
             allowDecimals={!isScore}
             tick={tick}
@@ -132,6 +137,8 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
           {g && goal.dir === "range" && (
             <ReferenceArea y1={Math.max(0, g.value - g.tolerance)} y2={g.value + g.tolerance} fill={c.goalInk} fillOpacity={0.12} stroke="none" />
           )}
+          {/* Average: faint dotted line under the bars, quieter than the dashed goal line. */}
+          {avg != null && <ReferenceLine y={avg} stroke={c.tick} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="1 3" />}
           {series.map((s) =>
             isScore ? (
               <Line
@@ -238,7 +245,7 @@ export function WeekGoal({ info }) {
         aria-valuenow={total}
         className="mt-1 h-2 overflow-hidden rounded-full bg-neutral-800"
       >
-        <div className="h-full rounded-full transition-[width]" style={{ width: `${Math.min(100, (total / target) * 100)}%`, background: ok ? "var(--color-accent2)" : "var(--color-violet-500)" }} />
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${Math.min(100, (total / target) * 100)}%`, background: ok ? "var(--color-accent2)" : "var(--color-accent-500)" }} />
       </div>
     </div>
   );
@@ -276,7 +283,7 @@ function EmotionGrid({ grid, title }) {
               {r.cells.map((felt, i) => (
                 <span key={grid.dates[i]} className="flex h-5 items-center justify-center" title={`${r.name} · ${dayLabel(grid.dates[i])}${felt == null ? " · nevyplněno" : felt ? "" : " · ne"}`}>
                   {/* Dot scales with the column (14 days ≈ 12 px, 30 days ≈ 5 px) and always leaves a gap to its neighbour. */}
-                  {felt != null && <span className={felt ? "aspect-square w-[70%] max-w-3 rounded-full bg-violet-500" : "size-1 rounded-full bg-neutral-700"} />}
+                  {felt != null && <span className={felt ? "aspect-square w-[70%] max-w-3 rounded-full bg-accent-500" : "size-1 rounded-full bg-neutral-700"} />}
                 </span>
               ))}
             </span>
@@ -297,7 +304,7 @@ function EmotionGrid({ grid, title }) {
       </div>
       <p className="mt-2 flex items-center gap-3 text-[11px] text-neutral-500">
         <span className="flex items-center gap-1">
-          <span className="size-2.5 rounded-full bg-violet-500" /> cítil(a)
+          <span className="size-2.5 rounded-full bg-accent-500" /> cítil(a)
         </span>
         <span className="flex items-center gap-1">
           <span className="size-1 rounded-full bg-neutral-700" /> vyplněno bez ní
@@ -319,13 +326,15 @@ function EmotionTop({ grid }) {
 
 // Several 1–5 scores: one small chart per metric, stacked and aligned on the same days, instead of
 // crossing lines in one chart. The row label names the metric and its weekly average.
-function ScoreRows({ rows, series, title }) {
+// scale "count" (food 0–5+): same rows as bars, with the 7-day total instead of the average.
+function ScoreRows({ rows, series, title, scale = "score" }) {
+  const counts = scale === "count";
   const c = useColors();
   return (
     <div className="space-y-1">
       {series.map((s, i) => {
         const last = i === series.length - 1;
-        const avg = weekSummary(rows, s.key)?.value;
+        const stat = weekSummary(rows, s.key, counts ? "sum" : "avg")?.value;
         return (
           <div key={s.key} className="flex items-start gap-2">
             <div className="w-24 shrink-0 pt-1">
@@ -334,7 +343,7 @@ function ScoreRows({ rows, series, title }) {
                 {s.label}
               </p>
               <p className="text-xs text-neutral-500">
-                {avg != null ? `Ø ${num(avg)}` : "–"}
+                {stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}
                 {s.better === "low" && <span className="block text-[11px] text-neutral-600">méně = lépe</span>}
               </p>
               {s.goalInfo && (
@@ -347,7 +356,7 @@ function ScoreRows({ rows, series, title }) {
               <TemplateChart
                 rows={rows}
                 series={[s]}
-                scale="score"
+                scale={scale}
                 compact
                 showXAxis={last}
                 height={last ? 82 : 58}
@@ -358,6 +367,193 @@ function ScoreRows({ rows, series, title }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Legend for the average line: dotted swatch + "Ø 8 240 kroků".
+function AvgNote({ series: s }) {
+  return (
+    <span className="text-neutral-500">
+      <span className="mr-1 inline-block w-3.5 border-t border-dotted align-middle" style={{ borderColor: C.tick }} aria-hidden="true" />Ø {statNum(s.avg)} {s.unit}
+    </span>
+  );
+}
+
+// Weekly goal meters + one chart per scale group.
+function CardBody({ chart: { template, groups, summary, weekGoals }, week = false }) {
+  return (
+    <>
+    {weekGoals.length > 0 && (
+      <div className="mb-3 space-y-2">
+        {weekGoals.map((info) => (
+          <WeekGoal key={info.key} info={info} />
+        ))}
+      </div>
+    )}
+    <div className="space-y-3">
+      {groups.map((g) => (
+        <div key={g.scale}>
+          {(g.scale === "score" && g.series.length > 1) || g.scale === "count" ? (
+            <>
+              <p className="mb-1 text-xs text-neutral-500">{g.scale === "count" ? "Počet za den" : "Hodnocení 1–5"}</p>
+              <ScoreRows rows={g.rows} series={g.series} title={template.name} scale={g.scale} />
+            </>
+          ) : (
+            <>
+              {/* One-series charts carry no legend, so the subtitle names the metric and its unit. */}
+              <p className="mb-1 text-xs text-neutral-500">
+                {subtitle(g)}
+                {g.goalInfo && g.goalInfo !== summary?.goalInfo && (
+                  <>
+                    {" · "}
+                    <GoalStatus info={g.goalInfo} />
+                  </>
+                )}
+                {g.series.length === 1 && g.series[0].avg != null && (
+                  <>
+                    {" · "}
+                    <AvgNote series={g.series[0]} />
+                  </>
+                )}
+              </p>
+              <TemplateChart
+                rows={g.rows}
+                series={g.series}
+                scale={g.scale}
+                height={g.series.length > 1 ? 168 : 140}
+                goal={g.goalInfo}
+                week={week}
+                label={`${template.name}: ${g.series.map((s) => s.label).join(", ")}${week ? " za týden" : ` za posledních ${DAYS} dní`}`}
+              />
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+    </>
+  );
+}
+
+const WEEK_NAME = { 0: "Tento týden", [-1]: "Minulý týden" };
+
+// One ring: gray track + arc filled to `frac` (0–1), starting at 12 o'clock.
+export function Ring({ r, frac, color, width }) {
+  const len = 2 * Math.PI * r;
+  return (
+    <g transform="rotate(-90 75 75)">
+      <circle cx={75} cy={75} r={r} fill="none" stroke="var(--color-neutral-800)" strokeWidth={width} />
+      {frac > 0 && (
+        <circle cx={75} cy={75} r={r} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeDasharray={`${Math.min(1, frac) * len} ${len}`} />
+      )}
+    </g>
+  );
+}
+
+// Sport month = activity rings: outer ring = total vs the weekly goal scaled to the window (full ring without
+// a goal), one inner ring per sport = its share of the total. Numbers live in the legend, not in color.
+function SportRings({ group, goals }) {
+  const c = useColors();
+  const { series, rows } = group;
+  const minutes = series[0].mode === "minutes";
+  const unit = (n) => (minutes ? "min" : activities(n));
+  const per = series.map((s) => ({ ...s, total: rows.reduce((a, r) => a + (r[s.key] ?? 0), 0) }));
+  const all = per.reduce((a, s) => a + s.total, 0);
+  const weekGoal = goals?.[minutes ? "week_minutes" : "week_activities"]?.value;
+  const target = weekGoal ? Math.round((weekGoal * rows.length) / 7) : null;
+  const ok = target != null && all >= target;
+  const width = 11, step = 14; // up to 5 rings (total + 3 sports + Ostatní) fit in 150 px
+  const pct = (n) => (all ? Math.round((n / all) * 100) : 0);
+  const aria = `Sport za posledních ${rows.length} dní: celkem ${statNum(all)} ${unit(all)}${target ? `, cíl ${statNum(target)}` : ""}; ${per.map((s) => `${s.label} ${statNum(s.total)} ${unit(s.total)}`).join(", ")}`;
+  return (
+    <div className="flex items-center gap-4" role="img" aria-label={aria}>
+      <svg viewBox="0 0 150 150" className="size-36 shrink-0" aria-hidden="true">
+        <Ring r={75 - width / 2} frac={target ? all / target : all ? 1 : 0} color={ok ? "var(--color-accent2)" : "var(--color-accent-500)"} width={width} />
+        {per.map((s, i) => (
+          <Ring key={s.key} r={75 - width / 2 - step * (i + 1)} frac={all ? s.total / all : 0} color={paint(c, s.color)} width={width} />
+        ))}
+      </svg>
+      <div className="min-w-0 flex-1 space-y-1.5 text-sm">
+        <p className="text-xs text-neutral-500">Posledních {rows.length} dní</p>
+        <p className="text-neutral-300">
+          Celkem <b className="text-lg font-semibold text-neutral-100">{statNum(all)}</b> {unit(all)}
+          {target && (
+            <span className="block text-xs text-neutral-400">
+              cíl {statNum(target)} {unit(target)}{" "}
+              <span className={`font-semibold ${ok ? "text-accent2-text" : ""}`}>{ok ? "✓ splněno" : `· ještě ${statNum(target - all)}`}</span>
+            </span>
+          )}
+        </p>
+        {per.map((s) => (
+          <p key={s.key} className="flex items-center gap-2 text-neutral-200">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ background: paint(c, s.color) }} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate capitalize">{s.label}</span>
+            <b className="font-semibold">{statNum(s.total)}</b>
+            <span className="whitespace-nowrap text-xs text-neutral-500">
+              {unit(s.total)} · {pct(s.total)} %
+            </span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Sport: Týden (Mon–Sun, arrows or swipe between weeks, every day labelled) | Měsíc (activity rings, SportRings).
+function SportCard({ month, records }) {
+  const [view, setView] = useState("week");
+  const [offset, setOffset] = useState(0);
+  const touchX = useRef(null);
+  const days = weekDays(records, offset);
+  const first = records.reduce((m, r) => (r.date < m ? r.date : m), records[0].date);
+  const canBack = days[0].date > first;
+  const go = (d) => (d < 0 ? canBack && setOffset(offset - 1) : offset < 0 && setOffset(offset + 1));
+  const chart = view === "week" ? templateCharts(days, [month.template])[0] : month;
+  const seg = (v, text) => (
+    <button
+      type="button"
+      aria-pressed={view === v}
+      onClick={() => setView(v)}
+      className={`min-h-12 rounded-lg px-4 text-sm font-semibold transition ${view === v ? "bg-neutral-700 text-neutral-50" : "text-neutral-400 hover:text-neutral-200"}`}
+    >
+      {text}
+    </button>
+  );
+  const arrow = (d, Icon, aria, disabled) => (
+    <button type="button" onClick={() => go(d)} disabled={disabled} aria-label={aria} className="flex size-12 items-center justify-center rounded-xl text-neutral-300 hover:bg-neutral-800 disabled:opacity-30">
+      <Icon size={20} aria-hidden="true" />
+    </button>
+  );
+  return (
+    <div
+      onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        const dx = e.changedTouches[0].clientX - (touchX.current ?? e.changedTouches[0].clientX);
+        if (view === "week" && Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); // swipe left = newer week
+      }}
+    >
+      <CardHeader title={month.template.name} summary={chart?.summary} />
+      <div className="mb-2 inline-flex rounded-xl bg-neutral-800 p-0.5" role="group" aria-label="Období grafu">
+        {seg("week", "Týden")}
+        {seg("month", "Měsíc")}
+      </div>
+      {view === "week" && (
+        <div className="mb-2 flex items-center justify-between">
+          {arrow(-1, ChevronLeft, "Předchozí týden", !canBack)}
+          <p className="text-center text-sm text-neutral-300" aria-live="polite">
+            {WEEK_NAME[offset] && <span className="block text-xs text-neutral-500">{WEEK_NAME[offset]}</span>}
+            {shortDate(days[0].date)} – {shortDate(days[6].date)}
+          </p>
+          {arrow(1, ChevronRight, "Další týden", offset === 0)}
+        </div>
+      )}
+      {view === "month" ? (
+        <SportRings group={month.groups[0]} goals={month.template.config_json?.goals} />
+      ) : chart ? (
+        <CardBody chart={chart} week />
+      ) : (
+        <p className="py-8 text-center text-sm text-neutral-500">V tomto týdnu bez záznamu sportu</p>
+      )}
     </div>
   );
 }
@@ -383,50 +579,17 @@ export default function Dashboard({ records, templates }) {
         <CardHeader title="Vývoj nálady" summary={moodSummary && { ...moodSummary, mode: "avg", unit: "" }} />
         <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${DAYS} dní`} />
       </section>
-      {charts.map(({ template, groups, summary, weekGoals, emotions }, i) => (
-        <section key={template.id} className={card} style={cycleVars(i)}>
-          <CardHeader title={template.name} summary={summary} aside={emotions && <EmotionTop grid={emotions} />} />
-          {emotions && <EmotionGrid grid={emotions} title={template.name} />}
-          {weekGoals.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {weekGoals.map((info) => (
-                <WeekGoal key={info.key} info={info} />
-              ))}
-            </div>
+      {charts.map((chart, i) => (
+        <section key={chart.template.id} className={card} style={cycleVars(i)}>
+          {chart.template.type === "sport" ? (
+            <SportCard month={chart} records={records} />
+          ) : (
+            <>
+              <CardHeader title={chart.template.name} summary={chart.summary} aside={chart.emotions && <EmotionTop grid={chart.emotions} />} />
+              {chart.emotions && <EmotionGrid grid={chart.emotions} title={chart.template.name} />}
+              <CardBody chart={chart} />
+            </>
           )}
-          <div className="space-y-3">
-            {groups.map((g) => (
-              <div key={g.scale}>
-                {g.scale === "score" && g.series.length > 1 ? (
-                  <>
-                    <p className="mb-1 text-xs text-neutral-500">Hodnocení 1–5</p>
-                    <ScoreRows rows={g.rows} series={g.series} title={template.name} />
-                  </>
-                ) : (
-                  <>
-                    {/* One-series charts carry no legend, so the subtitle names the metric and its unit. */}
-                    <p className="mb-1 text-xs text-neutral-500">
-                      {subtitle(g)}
-                      {g.goalInfo && g.goalInfo !== summary?.goalInfo && (
-                        <>
-                          {" · "}
-                          <GoalStatus info={g.goalInfo} />
-                        </>
-                      )}
-                    </p>
-                    <TemplateChart
-                      rows={g.rows}
-                      series={g.series}
-                      scale={g.scale}
-                      height={g.series.length > 1 ? 168 : 140}
-                      goal={g.goalInfo}
-                      label={`${template.name}: ${g.series.map((s) => s.label).join(", ")} za posledních ${DAYS} dní`}
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
         </section>
       ))}
       <p className="px-1 text-xs text-neutral-600">

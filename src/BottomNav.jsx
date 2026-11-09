@@ -1,8 +1,8 @@
-import { ChartLine, House, Plus, Settings } from "lucide-react";
+import { CalendarDays, ChartLine, House, Plus } from "lucide-react";
 
 const item = (active) =>
   `flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium transition ${
-    active ? "text-violet-400" : "text-neutral-500 hover:text-neutral-200"
+    active ? "text-accent-400" : "text-neutral-500 hover:text-neutral-200"
   }`;
 
 const Tab = ({ id, Icon, label, section, onNavigate }) => (
@@ -12,7 +12,7 @@ const Tab = ({ id, Icon, label, section, onNavigate }) => (
   </button>
 );
 
-// `section` is "overview", "charts" or "settings"; the + button opens the day wizard.
+// `section` is "overview", "charts" or "records" (none active in settings); the + button opens the day entry.
 export default function BottomNav({ section, onNavigate, onAdd, addDisabled }) {
   const tab = { section, onNavigate };
   return (
@@ -28,12 +28,12 @@ export default function BottomNav({ section, onNavigate, onAdd, addDisabled }) {
           onClick={onAdd}
           disabled={addDisabled}
           aria-label="Záznam dne"
-          className="-mt-7 mb-1 flex size-16 items-center justify-center rounded-full bg-violet-600 bg-(image:--accent-fill) text-on-accent shadow-md shadow-shade ring-4 ring-neutral-950 transition hover:bg-violet-500 active:scale-90 disabled:opacity-40"
+          className="-mt-7 mb-1 flex size-16 items-center justify-center rounded-full bg-accent-600 bg-(image:--accent-fill) text-on-accent shadow-md shadow-shade ring-4 ring-neutral-950 transition hover:bg-accent-500 active:scale-90 disabled:opacity-40"
         >
           <Plus size={32} strokeWidth={2.5} aria-hidden="true" />
         </button>
       </div>
-      <Tab id="settings" Icon={Settings} label="Nastavení" {...tab} />
+      <Tab id="records" Icon={CalendarDays} label="Historie" {...tab} />
     </nav>
   );
 }

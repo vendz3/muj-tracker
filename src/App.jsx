@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, CalendarDays, DatabaseBackup, Flame, LayoutTemplate, Palette, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, DatabaseBackup, Flame, LayoutTemplate, Palette, Settings, Target } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api.js";
 import Backup from "./Backup.jsx";
@@ -14,23 +14,27 @@ import RecordEntryModal from "./RecordEntryModal.jsx";
 import { card } from "./ui.js";
 
 const todayIso = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
+const dayBefore = (iso) => {
+  const d = new Date(`${iso}T00:00`);
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString("sv-SE");
+};
 
 // Settings sub-pages: [screen, title, icon, description]
 const SETTINGS_MENU = [
   ["templates", "Šablony", LayoutTemplate, "Tělo, produktivita, duševní zdraví"],
   ["goals", "Cíle", Target, "Denní a týdenní mety"],
-  ["records", "Záznamy", CalendarDays, "Historie dnů a jejich úpravy"],
   ["theme", "Motiv", Palette, "Barvy aplikace"],
   ["backup", "Záloha", DatabaseBackup, "Export a import dat"],
 ];
 
 export default function App() {
-  const [screen, setScreen] = useState("overview"); // overview | charts | settings | templates | goals | records | theme | backup
+  const [screen, setScreen] = useState("overview"); // overview | charts | records | settings | templates | goals | theme | backup
   const [themeId, setThemeId] = useState(() => getTheme(storedThemeId()).id); // applied in main.jsx before render
   const [records, setRecords] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [streak, setStreak] = useState(0);
-  const [editing, setEditing] = useState(null); // null | "new" | record being edited
+  const [editing, setEditing] = useState(null); // null | record being edited | { date } for a new day
   const [error, setError] = useState("");
 
   async function load() {
@@ -52,34 +56,46 @@ export default function App() {
   const closeEditor = useCallback(() => setEditing(null), []); // stable, so the modal's Escape listener isn't re-bound every render
   const today = records.find((r) => r.date === todayIso());
   const sub = SETTINGS_MENU.find(([key]) => key === screen);
+  const main = screen === "overview" || screen === "charts" || screen === "records"; // tabs of the bottom bar
+  const yesterday = editing && records.find((r) => r.date === dayBefore(editing.date));
 
   return (
     <main className="relative mx-auto min-h-screen w-full max-w-md px-4 pt-6 pb-32">
-      {sub ? (
+      {!main ? (
         <header className="mb-4 flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setScreen("settings")}
-            aria-label="Zpět do nastavení"
+            onClick={() => setScreen(sub ? "settings" : "overview")}
+            aria-label={sub ? "Zpět do nastavení" : "Zpět na přehled"}
             className="-ml-2 flex size-11 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-neutral-50"
           >
             <ChevronLeft size={28} aria-hidden="true" />
           </button>
-          <h1 className="text-3xl font-bold tracking-tight">{sub[1]}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{sub ? sub[1] : "Nastavení"}</h1>
         </header>
       ) : (
         <header className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Nastavení"}</h1>
-          {screen === "overview" && !error && (
-            // Days in a row with a record; lit while the streak is alive.
-            <span
-              aria-label={`Série: ${streak} ${streak === 1 ? "den" : streak >= 2 && streak <= 4 ? "dny" : "dní"} v řadě`}
-              className={`flex items-center gap-1 rounded-full px-3 py-1 text-lg font-bold ${streak ? "bg-accent2/15 text-accent2-text" : "bg-neutral-800 text-neutral-500"}`}
+          <h1 className="text-3xl font-bold tracking-tight">{screen === "overview" ? "Life Journal" : screen === "charts" ? "Grafy" : "Historie"}</h1>
+          <span className="flex items-center gap-1">
+            {screen === "overview" && !error && (
+              // Days in a row with a record; lit while the streak is alive.
+              <span
+                aria-label={`Série: ${streak} ${streak === 1 ? "den" : streak >= 2 && streak <= 4 ? "dny" : "dní"} v řadě`}
+                className={`flex items-center gap-1 rounded-full px-3 py-1 text-lg font-bold ${streak ? "bg-accent2/15 text-accent2-text" : "bg-neutral-800 text-neutral-500"}`}
+              >
+                <Flame size={22} aria-hidden="true" fill={streak ? "currentColor" : "none"} />
+                {streak}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setScreen("settings")}
+              aria-label="Nastavení"
+              className="-mr-2 flex size-11 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-neutral-50"
             >
-              <Flame size={22} aria-hidden="true" fill={streak ? "currentColor" : "none"} />
-              {streak}
-            </span>
-          )}
+              <Settings size={24} aria-hidden="true" />
+            </button>
+          </span>
         </header>
       )}
 
@@ -89,7 +105,7 @@ export default function App() {
         </p>
       )}
 
-      {screen === "overview" && !error && <Overview records={records} templates={templates} onNavigate={setScreen} />}
+      {screen === "overview" && !error && <Overview records={records} templates={templates} today={today} onNavigate={setScreen} onEdit={setEditing} />}
       {screen === "charts" && !error && <Dashboard records={records} templates={templates} />}
 
       {screen === "settings" && (
@@ -101,7 +117,7 @@ export default function App() {
                 onClick={() => setScreen(key)}
                 className={`${card} flex w-full items-center gap-4 text-left transition hover:bg-neutral-800 active:scale-[0.98]`}
               >
-                <span className="flex size-11 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                <span className="flex size-11 items-center justify-center rounded-xl bg-accent-500/15 text-accent-300">
                   <Icon size={22} aria-hidden="true" />
                 </span>
                 <span className="flex-1">
@@ -122,17 +138,21 @@ export default function App() {
       {screen === "records" && !error && <RecordsList records={records} templates={templates} onEdit={setEditing} />}
 
       <BottomNav
-        section={screen === "overview" || screen === "charts" ? screen : "settings"}
+        section={main ? screen : null}
         onNavigate={setScreen}
-        onAdd={() => setEditing(today ?? "new")}
+        onAdd={() => setEditing(today ?? { date: todayIso() })}
         addDisabled={!!error}
       />
 
       {editing && (
         <RecordEntryModal
-          key={editing === "new" ? "new" : editing.id}
+          key={editing.id ?? `new-${editing.date}`}
           templates={templates}
-          record={editing === "new" ? undefined : editing}
+          record={editing.id ? editing : undefined}
+          date={editing.date}
+          yesterday={yesterday}
+          // Picking a day that already has a record opens it for editing, so it is never silently overwritten.
+          onDateChange={(d) => setEditing(records.find((r) => r.date === d) ?? { date: d })}
           onCancel={closeEditor}
           onDone={() => {
             setEditing(null);

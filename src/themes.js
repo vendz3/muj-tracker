@@ -4,7 +4,7 @@
 //   onAccent      text on accent fills
 //   accent2Text   secondary accent as text (the brief's light accents are ~2–3.7:1 on white)
 // applyTheme() turns a theme into CSS variables that Tailwind's classes already read
-// (neutral-* = surfaces/text, violet-* = accent), so components keep their classes.
+// (neutral-* = surfaces/text, accent-* = accent), so components keep their classes.
 export const THEMES = [
   {
     id: "neon", name: "Neon Drive", description: "Hluboká černá, neonová růžová a cyan. Energie na každý den.", dark: true,
@@ -72,12 +72,12 @@ export function themeVars(t) {
     v[`--color-neutral-${step}`] = mix(t.text, t.card, k);
   }
   Object.assign(v, {
-    "--color-violet-900": t.accentStrong,
-    "--color-violet-600": t.accentStrong,
-    "--color-violet-500": t.accent,
-    "--color-violet-400": t.accentText,
-    "--color-violet-300": t.accentText,
-    "--color-violet-200": t.accentText,
+    "--color-accent-900": t.accentStrong,
+    "--color-accent-600": t.accentStrong,
+    "--color-accent-500": t.accent,
+    "--color-accent-400": t.accentText,
+    "--color-accent-300": t.accentText,
+    "--color-accent-200": t.accentText,
     "--color-on-accent": t.onAccent,
     "--color-accent2": t.accent2,
     "--color-accent2-text": t.accent2Text,
@@ -110,6 +110,7 @@ export function applyTheme(id) {
   for (const [k, val] of Object.entries(vars)) root.style.setProperty(k, val);
   root.style.colorScheme = t.dark ? "dark" : "light";
   root.dataset.theme = t.id;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t.bg); // browser bar follows the theme
   try {
     localStorage.setItem(STORE, t.id);
     localStorage.setItem(`${STORE}-vars`, JSON.stringify({ ...vars, "color-scheme": root.style.colorScheme }));

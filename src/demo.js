@@ -7,7 +7,7 @@ const GRATITUDE = ["Dobrá káva", "Procházka venku", "Telefonát s rodinou", "
 const TEMPLATES = [
   ["sleep", "Spánek", { quality: true, hours: true, goals: { sleep_hours: { value: 7.5 } } }],
   ["sport", "Sport", { sports: SPORTS, duration: true, goals: { week_minutes: { value: 150 }, week_activities: { value: 3 } } }],
-  ["food", "Jídlo", { calories: true, quality: true, alcohol: true, caffeine: true, sugar: false, goals: { calories: { value: 2300, tolerance: 200 } } }],
+  ["food", "Jídlo", { calories: true, quality: true, alcohol: true, caffeine: true, sugar: true, goals: { calories: { value: 2300, tolerance: 200 }, drinks: { value: 0 } } }],
   ["water", "Pitný režim", { goals: { liters: { value: 2 } } }],
   ["emotions", "Emoce", { emotions: EMOTIONS }],
   ["steps", "Kroky", {}],
@@ -39,7 +39,7 @@ export function demoData(today = new Date()) {
     const results = [
       res(1, { sleep_quality: clamp(3 + g * 1.5 + (rnd() - 0.5), 1, 5), sleep_hours: sleepH }),
       res(2, { sports: didSport ? [{ name: pick(SPORTS), intensity: clamp(3 + rnd() * 2, 1, 5), minutes: clamp(30 + rnd() * 60, 1, 1440) }] : [] }),
-      res(3, { calories: clamp(2300 + (rnd() - 0.5) * 800 - g * 150, 0, 20000), quality: clamp(3 + g + (rnd() - 0.5), 1, 5), alcohol: clamp(weekend ? 2 + rnd() * 2 : 1 + rnd(), 1, 5), caffeine: clamp(2 + rnd() * 2 - g * 0.5, 1, 5) }),
+      res(3, { calories: clamp(2300 + (rnd() - 0.5) * 800 - g * 150, 0, 20000), quality: clamp(3 + g + (rnd() - 0.5), 1, 5), drinks: weekend ? clamp(rnd() * 3.5, 0, 5) : rnd() < 0.15 ? 1 : 0, coffee: clamp(1 + rnd() * 2.5 - g * 0.5, 0, 5), sweets: clamp(rnd() * 2.5 - g * 0.5, 0, 5) }),
       res(4, { liters: Math.round((1.8 + g * 0.4 + rnd() * 0.6) * 10) / 10 }),
       res(5, { emotions: mood >= 4 ? ["radost", ...(rnd() < 0.3 ? ["překvapení"] : [])] : mood <= 2 ? [pick(["smutek", "hněv", "strach"])] : [pick(["radost", "překvapení", "smutek"])] }),
       res(6, { steps: clamp(7000 + g * 2500 + (didSport ? 3000 : 0) + (rnd() - 0.5) * 3000, 0, 200000) }),

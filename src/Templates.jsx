@@ -18,9 +18,9 @@ const FLAGS = {
   food: [
     ["calories", "Sledovat kalorie"],
     ["quality", "Sledovat kvalitu (1–5)"],
-    ["alcohol", "Sledovat alkohol (1–5)"],
-    ["caffeine", "Sledovat kofein (1–5)"],
-    ["sugar", "Sledovat cukr (1–5)"],
+    ["alcohol", "Sledovat alkohol (drinky)"],
+    ["caffeine", "Sledovat kofein (šálky)"],
+    ["sugar", "Sledovat sladkosti (porce)"],
   ],
 };
 
@@ -95,13 +95,13 @@ function ListEditor({ items, title, none, inputLabel, placeholder, onChange }) {
       <div className="flex flex-wrap gap-2">
         {items.length === 0 && <small className="text-neutral-500">{none}</small>}
         {items.map((s) => (
-          <span key={s} className="flex items-center rounded-full bg-violet-500/15 pl-4 text-violet-200">
+          <span key={s} className="flex items-center rounded-full bg-accent-500/15 pl-4 text-accent-200">
             {s}
             <button
               type="button"
               aria-label={`Odebrat ${s}`}
               onClick={() => onChange(items.filter((x) => x !== s))}
-              className="size-11 rounded-full text-lg text-violet-300 hover:text-neutral-50"
+              className="size-11 rounded-full text-lg text-accent-300 hover:text-neutral-50"
             >
               ×
             </button>
@@ -175,7 +175,7 @@ export default function Templates({ templates, onChange }) {
                 <ChevronDown
                   size={22}
                   aria-hidden="true"
-                  className={`shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180 text-violet-400" : ""}`}
+                  className={`shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180 text-accent-400" : ""}`}
                 />
                 <span className={`text-lg font-semibold ${t.is_active ? "" : "text-neutral-500"}`}>{t.name}</span>
               </button>
@@ -190,7 +190,7 @@ export default function Templates({ templates, onChange }) {
                 }}
                 className="flex h-12 w-16 shrink-0 items-center justify-center"
               >
-                <span className={`relative h-8 w-14 rounded-full transition-colors ${t.is_active ? "bg-violet-600" : "bg-neutral-700"}`}>
+                <span className={`relative h-8 w-14 rounded-full transition-colors ${t.is_active ? "bg-accent-600" : "bg-neutral-700"}`}>
                   <span
                     className={`absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform ${t.is_active ? "translate-x-6" : ""}`}
                   />

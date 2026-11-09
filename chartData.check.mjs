@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, emotionGrid, lastDays, templateCharts, weekSummary } from "./src/chartData.js";
+import { METRICS, activities, emotionGrid, entryOrder, goalReport, lastDays, templateCharts, weekDays, weekSummary } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -15,7 +15,7 @@ const records = [
   rec("2026-11-07", [[1, { sleep_quality: 4, sleep_hours: 7.5 }], [2, { sports: [{ name: "běh", intensity: 2, minutes: 30 }, { name: "fotbal", intensity: 4 }] }], [3, { calories: 2100 }]]),
   rec("2026-11-06", []), // day with no template filled at all
   // 2026-11-05 missing entirely -> gap
-  rec("2026-11-04", [[2, { sports: [] }], [3, { quality: 3, alcohol: 2 }], [5, { x: 1 }]]),
+  rec("2026-11-04", [[2, { sports: [] }], [3, { quality: 3, drinks: 0 }], [5, { x: 1 }]]),
   rec("2026-09-01", [[1, { sleep_quality: 1 }]]), // outside the 30-day window
 ];
 
@@ -40,8 +40,10 @@ assert.equal(sport.series[0].format(30, sport.rows[3]), "30 min · intenzita 2")
 assert.deepEqual(cards.sport.groups.map((g) => g.scale), ["value"]); // no fragmented intensity line
 assert.deepEqual(cards.sport.summary, { value: 30, delta: null, mode: "sum", unit: "min" });
 // Food: partial days (only calories / no calories) -> null for the missing metric; never-tracked metrics hidden.
-assert.deepEqual(cards.food.groups.find((g) => g.scale === "score").series.map((s) => s.key), ["quality", "alcohol"]);
-assert.deepEqual(col("food", "score", "alcohol"), [2, null, null, null]);
+assert.deepEqual(cards.food.groups.map((g) => g.scale), ["score", "count", "value"]);
+assert.deepEqual(cards.food.groups.find((g) => g.scale === "count").series.map((s) => s.key), ["drinks"]); // 0 drinks is data, stays visible
+assert.deepEqual(col("food", "count", "drinks"), [0, null, null, null]);
+assert.equal(METRICS.food.find((m) => m.key === "drinks").format(5), "5+");
 assert.deepEqual(col("food", "value", "calories"), [null, null, null, 2100]);
 
 assert.deepEqual(lastDays([], new Date()), []);
@@ -71,7 +73,7 @@ const mins = templateCharts(lastDays(mixed, today), [{ id: 9, type: "sport", con
 assert.deepEqual(mins.groups[0].rows.map((r) => r._minutes), [60, 0]);
 assert.equal(mins.summary.unit, "min");
 assert.deepEqual([1, 2, 4, 5, 0].map(activities), ["aktivita", "aktivity", "aktivity", "aktivit", "aktivit"]);
-assert.deepEqual(METRICS.food.filter((m) => m.better === "low").map((m) => m.key), ["alcohol", "caffeine", "sugar"]);
+assert.deepEqual(METRICS.food.filter((m) => m.better === "low").map((m) => m.key), ["drinks", "coffee", "sweets"]);
 
 // weekSummary: avg/sum over the last 7 rows, nulls skipped, delta only with a full previous week.
 const r = (vals) => vals.map((v) => ({ v }));
@@ -94,7 +96,7 @@ assert.deepEqual(goalStatus(r([null, null]), "v", { value: 2 }, "max"), { met: 0
 // Goals reach the cards. Sport goals are weekly: totals of minutes / activities, as meters, not chart lines.
 const withGoals = T.map((t) =>
   t.type === "sport" ? { ...t, config_json: { ...t.config_json, goals: { week_minutes: { value: 25 }, week_activities: { value: 3 } } } }
-  : t.type === "food" ? { ...t, config_json: { goals: { alcohol: { value: 1 } } } } : t);
+  : t.type === "food" ? { ...t, config_json: { alcohol: true, goals: { alcohol: { value: 1 }, drinks: { value: 0 } } } } : t);
 const gc = Object.fromEntries(templateCharts(days, withGoals).map((c) => [c.template.type, c]));
 const [wMin, wAct] = gc.sport.weekGoals;
 assert.deepEqual([wMin.key, wMin.status], ["week_minutes", { total: 30, of: 2, ok: true }]); // 0 ("bez sportu") + 30 ≥ 25
@@ -102,8 +104,10 @@ assert.deepEqual([wAct.key, wAct.status], ["week_activities", { total: 2, of: 2,
 assert.equal(gc.sport.summary.goalInfo, undefined); // weekly goals never draw a line over daily bars
 assert.equal(gc.sport.groups[0].goalInfo, undefined);
 assert.deepEqual(gc.sleep.weekGoals, []);
-// 1–5 ratings have no goals any more: an old stored alcohol goal is ignored, not drawn.
-assert.equal(gc.food.groups.find((g) => g.scale === "score").series.find((s) => s.key === "alcohol").goalInfo, undefined);
+// Food counts have daily max goals: "Alkohol ≤ 0" = alcohol-free days (0 drinks on the 4th meets it).
+// An old goal on the retired 1–5 "alcohol" key is ignored.
+assert.deepEqual(gc.food.groups.find((g) => g.scale === "count").series[0].goalInfo.status, { met: 1, of: 1, ok: true });
+assert.ok(!gc.food.goals.some((g) => g.key === "alcohol"));
 assert.equal(gc.sleep.summary.goalInfo, undefined);
 // Emotions: presence grid. true = felt, false = filled without it, null = not filled; rows by frequency,
 // emotions never felt hidden, one outside current settings still shown; top = most frequent in the last 7 days.
@@ -125,11 +129,23 @@ const ec = templateCharts(lastDays(emo, today), [E])[0];
 assert.deepEqual([ec.template.type, ec.groups.length, !!ec.emotions], ["emotions", 0, true]);
 console.log("OK");
 
-// Weekly goals count the calendar week Mon–Sun of the last row: Sunday sees Mon..Sun, Monday starts from zero.
-const wk = (dates) => dates.map((date) => ({ date, v: 1 }));
-assert.deepEqual(goalStatus(wk(["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-08"]), "v", { value: 3 }, "min", 7, "week"), { total: 3, of: 3, ok: true }); // Sun 1.11. is last week
-assert.deepEqual(goalStatus(wk(["2026-11-07", "2026-11-08", "2026-11-09"]), "v", { value: 3 }, "min", 7, "week"), { total: 1, of: 1, ok: false }); // Mon 9.11.: new week
+// Weekly goals count the last 7 rows (rolling), not the calendar week.
+const wk = (vs) => vs.map((v, i) => ({ date: `2026-11-${String(i + 1).padStart(2, "0")}`, v }));
+assert.deepEqual(goalStatus(wk([1, 1, null, 1, null, null, null, 1, 1]), "v", { value: 3 }, "min", 7, "week"), { total: 3, of: 3, ok: true }); // first two rows fall out
+assert.deepEqual(goalStatus(wk([1, 1, 1, null, null, null, null, null, null]), "v", { value: 3 }, "min", 7, "week"), { total: 1, of: 1, ok: false });
 console.log("OK week");
+
+// goalReport: rate, level, score and the previous 7 days for the trend.
+const daily = { key: "d", dir: "min", goal: { value: 2 }, rowKey: "d", status: { met: 4, of: 5 } };
+const weekly = { key: "w", dir: "min", goal: { value: 3 }, rowKey: "w", period: "week", status: { total: 2, of: 2 } };
+const prevRows = [...Array(7)].map(() => ({ d: 1, w: null })); // previous week: daily all missed, weekly no data
+const rep = goalReport([{ rows: [...prevRows, ...Array(7).fill({ d: 2 })], goals: [daily, weekly] }]);
+assert.deepEqual(rep.items.map((i) => [i.level, Math.round(i.rate * 100)]), [["good", 80], ["mid", 67]]);
+assert.equal(Math.round(rep.score * 100), 73);
+assert.equal(rep.good, 1);
+assert.equal(Math.round(rep.trend * 100), 80); // only the daily goal had data the week before: 0 -> 0,8
+assert.equal(goalReport([{ rows: [], goals: [{ ...daily, status: { met: 0, of: 0 } }] }]).score, null);
+console.log("OK goalReport");
 
 // Every new numeric template gets a card with a headline (SUMMARY entry) instead of crashing.
 for (const [type, key] of [["steps", "steps"], ["fasting", "hours"], ["screen_time", "minutes"], ["reading", "minutes"], ["meditation", "minutes"], ["stress", "stress"]]) {
@@ -140,3 +156,27 @@ for (const [type, key] of [["steps", "steps"], ["fasting", "hours"], ["screen_ti
 }
 assert.deepEqual(templateCharts([{ date: "2026-11-08", record: { results: [{ template_id: 1, result_data_json: { items: ["a"] } }] } }], [{ id: 1, type: "gratitude", config_json: {} }]), []);
 console.log("OK new templates");
+
+{
+const today = new Date(2026, 10, 11); // Wed 11. 11. 2026
+const recs = [{ date: "2026-11-02", results: [] }, { date: "2026-11-10", results: [] }];
+const w = weekDays(recs, 0, today);
+assert(w.length === 7 && w[0].date === "2026-11-09" && w[6].date === "2026-11-15", "this week Mon–Sun");
+assert(w[1].record === recs[1] && w[4].record === null, "records by date, future empty");
+assert(weekDays(recs, -1, today)[0].date === "2026-11-02", "last week");
+
+const order = entryOrder([{ id: 13, type: "stress" }, { id: 2, type: "sport" }, { id: 1, type: "sleep" }]).map((t) => t.id);
+assert(order.join() === "13,1,2", "stress first, then by id");
+
+// Meditation: a day without it counts as 0, so 10 min on 1 of 7 days -> Ø 10/7.
+const med = { id: 12, type: "meditation", config_json: {} };
+const mrecs = [...Array(7)].map((_, i) => ({ date: `2026-11-${String(i + 5).padStart(2, "0")}`, results: i === 6 ? [{ template_id: 12, result_data_json: { minutes: 10 } }] : [] }));
+const card = templateCharts(lastDays(mrecs, new Date(2026, 10, 11)), [med])[0];
+assert(Math.abs(card.summary.value - 10 / 7) < 1e-9, `meditation avg over all days, got ${card.summary.value}`);
+
+// Steps: average line over the charted days (filled ones).
+const st = { id: 6, type: "steps", config_json: {} };
+const srecs = [["2026-11-10", 4000], ["2026-11-11", 8000]].map(([date, steps]) => ({ date, results: [{ template_id: 6, result_data_json: { steps } }] }));
+assert(templateCharts(lastDays(srecs, today), [st])[0].groups[0].series[0].avg === 6000, "steps avg line");
+}
+console.log("OK week view, order, averages");

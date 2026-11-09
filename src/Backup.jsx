@@ -3,8 +3,13 @@ import { useRef, useState } from "react";
 import { exportData, importData } from "./api.js";
 import { card, primary, secondary } from "./ui.js";
 
+const LAST_BACKUP = "lj-last-backup"; // per browser, so it's not part of the export
+const STALE_DAYS = 14;
+const daysWord = (n) => (n === 1 ? "dnem" : "dny");
+
 export default function Backup() {
   const [error, setError] = useState("");
+  const [lastBackup, setLastBackup] = useState(() => localStorage.getItem(LAST_BACKUP));
   const file = useRef(null);
 
   async function onExport() {
@@ -13,6 +18,9 @@ export default function Backup() {
       const url = URL.createObjectURL(blob);
       Object.assign(document.createElement("a"), { href: url, download: "backup.json" }).click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const now = new Date().toISOString();
+      localStorage.setItem(LAST_BACKUP, now);
+      setLastBackup(now);
     } catch (e) {
       setError(`Export selhal: ${e.message}`);
     }
@@ -48,12 +56,24 @@ export default function Backup() {
     }
   }
 
+  const age = lastBackup && Math.floor((Date.now() - new Date(lastBackup)) / 864e5);
+  const stale = !lastBackup || age > STALE_DAYS;
   return (
     <div className="space-y-4">
       <section className={`${card} space-y-3`}>
         <p className="text-neutral-400">
           Data jsou uložená jen v tomto prohlížeči (localStorage). Smazáním dat prohlížeče o ně přijdeš, proto si pravidelně stahuj zálohu.
         </p>
+        <p className="text-sm text-neutral-300">
+          {lastBackup
+            ? `Poslední záloha: ${new Date(lastBackup).toLocaleDateString("cs-CZ")} (${age === 0 ? "dnes" : `před ${age} ${daysWord(age)}`})`
+            : "Zatím žádná záloha"}
+        </p>
+        {stale && (
+          <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
+            {lastBackup ? `Záloha je starší než ${STALE_DAYS} dní, stáhni si novou.` : "Ještě nemáš žádnou zálohu, stáhni si ji."}
+          </p>
+        )}
         <button type="button" onClick={onExport} className={`${primary} flex w-full items-center justify-center gap-2`}>
           <Download size={20} aria-hidden="true" /> Exportovat do JSON
         </button>

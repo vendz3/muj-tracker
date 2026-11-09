@@ -13,6 +13,8 @@ const SPORT_COLORS = [A1, A2, A3];
 // a template with both gets two stacked charts instead of a dual-axis chart.
 const score = (key, label, color, get = (d) => d[key]) => ({ key, label, color, scale: "score", get });
 const value = (key, label, unit, color, get = (d) => d[key]) => ({ key, label, unit, color, scale: "value", get });
+// scale "count" = whole number per day where 0 is real data (food 0–5+, 5 = "5 or more"): small bar rows, sum per week.
+const count = (key, label, color) => ({ key, label, color, unit: "", scale: "count", integer: true, better: "low", format: (v) => (v >= 5 ? "5+" : String(v)), get: (d) => d[key] });
 
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 export const METRICS = {
@@ -21,18 +23,19 @@ export const METRICS = {
   // better: which end of the 1–5 scale is the good one (shown as "méně = lépe" where it isn't the usual high).
   food: [
     { ...score("quality", "Kvalita", A1), better: "high" },
-    { ...score("alcohol", "Alkohol", A2), better: "low" },
-    { ...score("caffeine", "Kofein", A3), better: "low" },
-    { ...score("sugar", "Cukr", A4), better: "low" },
+    count("drinks", "Alkohol", A2),
+    count("coffee", "Kofein", A3),
+    count("sweets", "Sladkosti", A4),
     value("calories", "Příjem", "kcal", A1),
   ],
   water: [value("liters", "Vypito", "l", A1)],
-  steps: [value("steps", "Kroky", "kroků", A1)],
+  // avgLine: dotted average line in the chart; zeroFill: a day without the metric counts as 0, not as unfilled.
+  steps: [{ ...value("steps", "Kroky", "kroků", A1), avgLine: true }],
   fasting: [value("hours", "Půst", "h", A1)],
-  screen_time: [value("minutes", "Čas u obrazovky", "min", A1)],
+  screen_time: [{ ...value("minutes", "Čas u obrazovky", "min", A1), avgLine: true }],
   // shortcut: pages aren't charted (another unit on the same axis); they show in Záznamy. Chart them if asked.
   reading: [value("minutes", "Čtení", "min", A1)],
-  meditation: [value("minutes", "Meditace", "min", A1)],
+  meditation: [{ ...value("minutes", "Meditace", "min", A1), zeroFill: true }], // modal saves only >= 1 min
   stress: [{ ...score("stress", "Stres", A2), better: "low" }],
 };
 
@@ -54,11 +57,28 @@ const SUMMARY = {
   stress: [["stress", "avg", ""]],
 };
 
+const iso = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD local
+
+// Order of the day entry (RecordEntryModal): stress right after mood, then the rest by id.
+export const entryOrder = (ts) => {
+  const byId = [...ts].sort((a, b) => a.id - b.id);
+  return [...byId.filter((t) => t.type === "stress"), ...byId.filter((t) => t.type !== "stress")];
+};
+
+// The 7 days Mon–Sun of the week `offset` weeks from this one (0 = this week, -1 = last); future days have no record.
+export function weekDays(records, offset = 0, today = new Date()) {
+  const byDate = Object.fromEntries(records.map((r) => [r.date, r]));
+  const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7) + 7 * offset);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = iso(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i));
+    return { date, record: byDate[date] ?? null };
+  });
+}
+
 // Every calendar day from the first record in the window to today, so a missing day is a gap, not a jump.
 export function lastDays(records, today = new Date()) {
   const start = new Date(today);
   start.setDate(start.getDate() - (DAYS - 1));
-  const iso = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD local
   const byDate = Object.fromEntries(records.map((r) => [r.date, r]));
   const first = records.map((r) => r.date).filter((d) => d >= iso(start)).sort()[0];
   if (!first) return [];
@@ -69,14 +89,14 @@ export function lastDays(records, today = new Date()) {
 
 // Average or total of `key` over the last WEEK rows, and the change vs the WEEK before.
 // Nulls (unfilled days) are skipped; no data -> null; delta needs a full previous week.
-export function weekSummary(rows, key, mode = "avg") {
+export function weekSummary(rows, key, mode = "avg", days = WEEK) {
   const agg = (part) => {
     const xs = part.map((r) => r[key]).filter((v) => v != null);
     return xs.length ? (mode === "sum" ? sum(xs) : sum(xs) / xs.length) : null;
   };
-  const value = agg(rows.slice(-WEEK));
+  const value = agg(rows.slice(-days));
   if (value == null) return null;
-  const prev = rows.length >= 2 * WEEK ? agg(rows.slice(-2 * WEEK, -WEEK)) : null;
+  const prev = rows.length >= 2 * days ? agg(rows.slice(-2 * days, -days)) : null;
   return { value, delta: prev == null ? null : value - prev };
 }
 
@@ -136,11 +156,30 @@ export function emotionGrid(days, t) {
   return { dates: days.map((d) => d.date), rows, top: top.week ? top.name : null, filledWeek: data.slice(-WEEK).filter(Boolean).length };
 }
 
+// Overview goal evaluation over templateCharts() cards: rate 0–1 per goal (daily: met / filled days, weekly:
+// total / target), a visible level, the average as the week's score, and the trend vs the 7 days before
+// (average change over goals that have data in both windows, so a newly added goal doesn't skew it).
+export const GOOD = 0.8, MID = 0.5;
+const rateOf = (s, info) => (!s.of ? null : info.period === "week" ? Math.min(1, s.total / info.goal.value) : s.met / s.of);
+const avg = (xs) => (xs.length ? sum(xs) / xs.length : null);
+export function goalReport(cards) {
+  const items = cards.flatMap(({ rows, goals = [] }) =>
+    goals.map((info) => {
+      const rate = rateOf(info.status, info);
+      const prev = rateOf(goalStatus(rows.slice(0, -WEEK), info.rowKey, info.goal, info.dir, WEEK, info.period), info);
+      return { info, rows, rate, prev, level: rate == null ? null : rate >= GOOD ? "good" : rate >= MID ? "mid" : "bad" };
+    }),
+  );
+  const rated = items.filter((i) => i.rate != null);
+  const both = rated.filter((i) => i.prev != null);
+  return { items, score: avg(rated.map((i) => i.rate)), trend: avg(both.map((i) => i.rate - i.prev)), good: rated.filter((i) => i.level === "good").length, total: rated.length };
+}
+
 // Raw API records -> one card per template that has data: { template, groups: [{ scale, series, rows }], summary }.
 // A day without the template's result (or without a metric) yields null -> gap in the line.
 export function templateCharts(days, templates) {
   const cards = [];
-  for (const t of [...templates].sort((a, b) => a.id - b.id)) {
+  for (const t of entryOrder(templates)) {
     if (t.type === "emotions") {
       const grid = emotionGrid(days, t);
       if (grid) cards.push({ template: t, emotions: grid, groups: [], weekGoals: [] });
@@ -152,13 +191,15 @@ export function templateCharts(days, templates) {
     const metrics = sport ? sport.series : METRICS[t.type];
     const rows = days.map(({ date }, i) => ({
       date,
-      ...(sport ? sport.rows[i] : Object.fromEntries(metrics.map((m) => [m.key, data[i] ? (m.get(data[i]) ?? null) : null]))),
+      ...(sport ? sport.rows[i] : Object.fromEntries(metrics.map((m) => [m.key, (data[i] ? m.get(data[i]) : null) ?? (m.zeroFill ? 0 : null)]))),
       // Activities that day (sport entries), for the weekly activity goal; "bez sportu" = 0.
       ...(t.type === "sport" && { _count: data[i] ? (data[i].sports?.length ?? 0) : null }),
     }));
-    // Hide a metric with nothing to show (never tracked, or only zeros).
-    const series = metrics.filter((m) => rows.some((r) => r[m.key] > 0));
-    const groups = ["score", "value"]
+    // Hide a metric with nothing to show (never tracked, or only zeros; for counts a 0 is data, e.g. no alcohol).
+    // Copies, so per-card fields (goalInfo, avg) never leak into the shared METRICS objects.
+    const series = metrics.filter((m) => rows.some((r) => (m.scale === "count" ? r[m.key] != null : r[m.key] > 0))).map((m) => ({ ...m }));
+    for (const s of series) if (s.avgLine) s.avg = weekSummary(rows, s.key, "avg", rows.length)?.value;
+    const groups = ["score", "count", "value"]
       .map((scale) => ({ scale, series: series.filter((m) => m.scale === scale), rows }))
       .filter((g) => g.series.length);
     if (!groups.length) continue;

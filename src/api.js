@@ -3,12 +3,12 @@
 const T = "tracker_templates";
 const R = "tracker_records";
 
-// Mirrors DEFAULT_TEMPLATES in main.py, with the config defaults the backend used to fill in.
+// Default templates for a new user; a few starter goals so the Overview isn't empty on day one.
 const SEED = [
-  ["sleep", "Spánek", { quality: true, hours: false }, true],
-  ["sport", "Sport", { sports: [], duration: false }, true],
+  ["sleep", "Spánek", { quality: true, hours: true, goals: { sleep_hours: { value: 7 } } }, true],
+  ["sport", "Sport", { sports: [], duration: false, goals: { week_activities: { value: 3 } } }, true],
   ["food", "Jídlo", { calories: true, quality: true, alcohol: false, caffeine: false, sugar: false }, true],
-  ["water", "Pitný režim", {}, true],
+  ["water", "Pitný režim", { goals: { liters: { value: 2 } } }, true],
   ["emotions", "Emoce", { emotions: ["radost", "smutek", "strach", "hněv", "překvapení", "znechucení"] }, true],
   ["steps", "Kroky", {}, false],
   ["fasting", "Půst", { full_day: true, hours: 16 }, false],
@@ -23,6 +23,26 @@ const SEED = [
 const load = (key) => JSON.parse(localStorage.getItem(key) ?? "null");
 const store = (key, v) => localStorage.setItem(key, JSON.stringify(v));
 const isoDay = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time, like App.jsx
+
+// Food used to rate alcohol / caffeine / sugar 1–5 (no zero); now they are counts 0–5+. Old 1 meant "none",
+// so old n -> n - 1 under the new key. Keyed on which keys exist, so running it twice changes nothing.
+const FOOD_COUNTS = [["alcohol", "drinks"], ["caffeine", "coffee"], ["sugar", "sweets"]];
+export function migrateFood(records, templates) {
+  const food = new Set(templates.filter((t) => t.type === "food").map((t) => t.id));
+  let changed = false;
+  for (const r of records)
+    for (const res of r.results ?? []) {
+      const d = res.result_data_json;
+      if (!food.has(res.template_id) || !d) continue;
+      for (const [old, key] of FOOD_COUNTS)
+        if (typeof d[old] === "number") {
+          if (d[key] == null) d[key] = Math.max(0, d[old] - 1);
+          delete d[old];
+          changed = true;
+        }
+    }
+  return changed;
+}
 
 function templates() {
   let t = load(T);
@@ -49,6 +69,7 @@ function saveRecord(records, record, body) {
   const now = new Date().toISOString();
   Object.assign(record, {
     mood_score: body.mood_score,
+    note: body.note?.trim() || undefined, // empty note isn't stored
     updated_at: now,
     results: (body.results ?? []).map((r) => ({ template_id: r.template_id, result_data_json: r.data })),
   });
@@ -59,6 +80,7 @@ function saveRecord(records, record, body) {
 export async function api(path, method = "GET", body) {
   const [, res, id] = path.split("/");
   const records = load(R) ?? [];
+  if (migrateFood(records, templates())) store(R, records);
   if (res === "templates") {
     const list = templates();
     if (method === "GET") return list;
@@ -71,8 +93,9 @@ export async function api(path, method = "GET", body) {
   if (res === "records") {
     if (method === "GET") return [...records].sort((a, b) => b.date.localeCompare(a.date));
     if (method === "POST") {
-      // One record per day: a second save today overwrites it.
-      const date = isoDay(new Date());
+      // One record per day: a second save of the same day overwrites it. Past days can be backfilled, future ones not.
+      const date = body.date ?? isoDay(new Date());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > isoDay(new Date())) throw new Error("Neplatné datum");
       let record = records.find((r) => r.date === date);
       if (!record) {
         record = { id: Math.max(0, ...records.map((r) => r.id)) + 1, date, created_at: new Date().toISOString() };
@@ -98,6 +121,7 @@ export async function importData(data) {
     throw new Error("soubor neobsahuje platné šablony");
   if (!Array.isArray(r) || !r.every((x) => Number.isInteger(x?.id) && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && Array.isArray(x.results)))
     throw new Error("soubor neobsahuje platné záznamy");
+  migrateFood(r, t);
   store(T, t);
   store(R, r);
 }

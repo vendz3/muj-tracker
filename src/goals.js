@@ -14,6 +14,10 @@ export const GOALS = {
   ],
   food: [
     g("calories", "range", "Kalorie", "kcal", 0, 20000, 50, { flag: "calories", defaultTolerance: 200 }),
+    // Counts per day; "Alkohol ≤ 0" = alcohol-free days. Unit lives in the label (no Czech plurals needed).
+    g("drinks", "max", "Alkohol (drinky)", "", 0, 50, 1, { flag: "alcohol", per: "denně" }),
+    g("coffee", "max", "Kofein (šálky)", "", 0, 50, 1, { flag: "caffeine", per: "denně" }),
+    g("sweets", "max", "Sladkosti (porce)", "", 0, 50, 1, { flag: "sugar", per: "denně" }),
   ],
   water: [g("liters", "min", "Pitný režim", "l", 0, 20, 0.25, { per: "denně" })],
   reading: [
@@ -21,6 +25,7 @@ export const GOALS = {
     g("pages", "min", "Stránky", "str.", 1, 5000, 1, { flag: "pages", per: "denně" }),
   ],
   meditation: [g("minutes", "min", "Meditace", "min", 1, 1440, 1, { per: "denně" })],
+  screen_time: [g("minutes", "max", "Screen time", "min", 1, 1440, 5, { per: "denně" })],
 };
 
 export const DIR_WORD = { min: "aspoň", max: "nejvýš", range: "" };
@@ -40,19 +45,11 @@ export function goalText(goal, dir, unit) {
   return `${dir === "min" ? "≥" : "≤"} ${num(goal.value)}${u}`;
 }
 
-// ISO date (YYYY-MM-DD) of the Monday of the week containing `iso`, in local time.
-function mondayOf(iso) {
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00`);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d.toLocaleDateString("sv-SE");
-}
-
 // Daily goal: how many of the filled days among the last `days` rows met it (unfilled days don't count).
-// Weekly goal (period "week"): the total of the calendar week (Mon–Sun) of the last row, so it restarts every Monday.
+// Weekly goal (period "week"): the total of the last `days` rows (rolling 7 days, same window as daily goals).
 export function goalStatus(rows, rowKey, goal, dir, days = 7, period = "day") {
   if (period === "week") {
-    const vals = rows.filter((r) => r.date >= mondayOf(rows.at(-1)?.date)).map((r) => r[rowKey]).filter((v) => v != null);
+    const vals = rows.slice(-days).map((r) => r[rowKey]).filter((v) => v != null);
     const total = vals.reduce((a, b) => a + b, 0);
     return { total, of: vals.length, ok: vals.length > 0 && meets(total, goal, dir) };
   }

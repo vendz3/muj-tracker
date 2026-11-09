@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0F172A" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <title>Life Journal</title>
     <!-- Paint the saved theme before any module loads (themes.js caches its CSS variables here). -->
     <script>
       try {
         const v = JSON.parse(localStorage.getItem("lj-theme-vars") || "{}");
+        if (v["--color-neutral-950"]) document.querySelector('meta[name="theme-color"]').content = v["--color-neutral-950"];
         for (const k in v) k === "color-scheme" ? (document.documentElement.style.colorScheme = v[k]) : document.documentElement.style.setProperty(k, v[k]);
       } catch {}
     </script>

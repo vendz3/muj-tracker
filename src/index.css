@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 /* Theme tokens beyond Tailwind's palette. Defaults = "midnight" theme; themes.js applyTheme() overrides them
-   (and the neutral-* / violet-* scales) as inline variables on <html>. */
+   (and the neutral-* / accent-* scales) as inline variables on <html>. */
 @theme {
+  --color-accent-900: #2563eb;
+  --color-accent-600: #2563eb;
+  --color-accent-500: #3b82f6;
+  --color-accent-400: #60a5fa;
+  --color-accent-300: #60a5fa;
+  --color-accent-200: #60a5fa;
   --color-on-accent: #ffffff;
   --color-accent2: #34d399;
   --color-accent2-text: #34d399;

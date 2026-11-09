@@ -17,7 +17,7 @@ export default function ThemePicker({ value, onChange }) {
             aria-checked={selected}
             onClick={() => onChange(t.id)}
             className={`${card} flex min-h-12 w-full items-center gap-4 text-left transition active:scale-[0.98] ${
-              selected ? "ring-2 ring-violet-500" : "hover:bg-neutral-800"
+              selected ? "ring-2 ring-accent-500" : "hover:bg-neutral-800"
             }`}
           >
             <span
@@ -43,7 +43,7 @@ export default function ThemePicker({ value, onChange }) {
               <span className="block text-sm text-neutral-500">{t.description}</span>
             </span>
             <span
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full ${selected ? "bg-violet-600 text-on-accent" : "ring-2 ring-neutral-700"}`}
+              className={`flex size-7 shrink-0 items-center justify-center rounded-full ${selected ? "bg-accent-600 text-on-accent" : "ring-2 ring-neutral-700"}`}
               aria-hidden="true"
             >
               {selected && <Check size={18} strokeWidth={3} />}

@@ -1,15 +1,19 @@
-import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Copy, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Rating from "./Rating.jsx";
 import { api } from "./api.js";
+import { entryOrder } from "./chartData.js";
 import { GOALS, goalText } from "./goals.js";
 import { card, checkRow, checkbox, input, primary } from "./ui.js";
 
 export const MOODS = ["😞", "🙁", "😐", "🙂", "😄"];
+export const MOOD_LABELS = ["Hrozná", "Špatná", "Neutrální", "Dobrá", "Skvělá"];
 const OTHER = "ostatní";
 
 // Flat templates: one form field per data key. `flag` = config key that switches the field on (none = always shown).
-const SCALE = "1 = málo, 5 = hodně";
+// Food counts: 0 is a real answer ("none"), unfilled stays null. shortcut: 5 means "5 or more", add a number field if ever needed.
+const COUNTS = [0, 1, 2, 3, 4, 5];
+const COUNT_LABELS = ["0", "1", "2", "3", "4", "5+"];
 const FIELDS = {
   sleep: [
     { key: "sleep_quality", flag: "quality", kind: "rating", label: "Kvalita spánku" },
@@ -18,9 +22,9 @@ const FIELDS = {
   food: [
     { key: "calories", flag: "calories", kind: "number", label: "Kalorie (kcal)", step: 1, max: 20000, slider: [5000, 50], placeholder: "např. 2100" },
     { key: "quality", flag: "quality", kind: "rating", label: "Kvalita jídla" },
-    { key: "alcohol", flag: "alcohol", kind: "rating", label: "Alkohol", hint: SCALE },
-    { key: "caffeine", flag: "caffeine", kind: "rating", label: "Kofein", hint: SCALE },
-    { key: "sugar", flag: "sugar", kind: "rating", label: "Cukr", hint: SCALE },
+    { key: "drinks", flag: "alcohol", kind: "count", label: "Alkohol (drinky)", hint: "1 drink = pivo 0,5 l · víno 2 dl · panák 4 cl" },
+    { key: "coffee", flag: "caffeine", kind: "count", label: "Kofein (šálky)", hint: "káva, energy drink, silný čaj" },
+    { key: "sweets", flag: "sugar", kind: "count", label: "Sladkosti (porce)", hint: "sušenka, zákusek, slazený nápoj" },
   ],
   water: [{ key: "liters", kind: "number", label: "Vypito (litry)", step: 0.25, max: 20, slider: [5, 0.25], placeholder: "např. 1,5" }],
   steps: [{ key: "steps", kind: "number", label: "Počet kroků", step: 1, max: 200000, slider: [30000, 500], placeholder: "např. 8000" }],
@@ -137,7 +141,8 @@ function NumberField({ id, label, name, value, onChange, min = 0, max, step, sli
           step={slider[1]}
           value={value === "" ? min : Math.min(Number(value), slider[0])}
           onChange={(e) => onChange(e.target.value)}
-          className="mt-1 h-12 w-full cursor-pointer accent-violet-500"
+          // Unfilled: dimmed, so the thumb at the minimum doesn't read as a saved minimum.
+          className={`mt-1 h-12 w-full cursor-pointer accent-accent-500 ${value === "" ? "opacity-40" : ""}`}
         />
       )}
     </div>
@@ -146,39 +151,68 @@ function NumberField({ id, label, name, value, onChange, min = 0, max, step, sli
 
 // Full-screen day entry: mood and every active template on one scrolling page, one save at the end.
 // `record` = existing DailyRecord to edit (PUT), or undefined for a new day (POST).
-export default function RecordEntryModal({ templates, record, onDone, onCancel }) {
+export default function RecordEntryModal({ templates, record, date, yesterday, onDateChange, onDone, onCancel }) {
   const savedById = Object.fromEntries((record?.results ?? []).map((r) => [r.template_id, r.result_data_json]));
+  const prevById = Object.fromEntries((yesterday?.results ?? []).map((r) => [r.template_id, r.result_data_json])); // "Stejně jako včera"
   // Active templates plus ones disabled since but holding data for this day, so saving doesn't delete it.
   // A template added after that day has no saved result and starts empty.
   const [active] = useState(() => templates.filter((t) => t.is_active || t.id in savedById));
   const [mood, setMood] = useState(record?.mood_score ?? null);
   const [state, setState] = useState(() => initialState(active, savedById));
+  const [note, setNote] = useState(record?.note ?? "");
+  // Unsaved changes = form differs from how it opened; read by the history listener through a ref.
+  const [initial] = useState(() => JSON.stringify([mood, state, note]));
+  const dirty = useRef(false);
+  dirty.current = JSON.stringify([mood, state, note]) !== initial;
+  const after = useRef(null); // set for a deliberate exit (save, date switch): popstate then skips the confirm
+  const today = new Date().toLocaleDateString("sv-SE");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Stress right after mood: both are "how was the day" at a glance.
-  const first = ["stress"];
-  const sections = [{ id: "mood", type: "mood", name: "Nálada" }, ...active.filter((t) => first.includes(t.type)), ...active.filter((t) => !first.includes(t.type))];
+  // Stress right after mood (entryOrder): both are "how was the day" at a glance. The dashboard uses the same order.
+  const sections = [{ id: "mood", type: "mood", name: "Nálada" }, ...entryOrder(active)];
   const set = (id, value) => setState((s) => ({ ...s, [id]: value }));
 
-  // The page behind must not scroll under the modal; Escape closes without saving like the X.
+  // The modal owns one history entry: X, Escape and the system Back button all leave through popstate,
+  // which asks before dropping unsaved changes. The page behind must not scroll under the modal.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e) => e.key === "Escape" && onCancel();
+    history.pushState({ entry: true }, "");
+    const onPop = () => {
+      if (after.current) after.current();
+      else if (!dirty.current || confirm("Zahodit změny?")) onCancel();
+      else history.pushState({ entry: true }, ""); // stay: restore the entry Back just consumed
+    };
+    const onKey = (e) => e.key === "Escape" && history.back();
+    const onUnload = (e) => dirty.current && e.preventDefault(); // reload / closing the tab
+    window.addEventListener("popstate", onPop);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("beforeunload", onUnload);
     return () => {
       document.body.style.overflow = prev;
+      window.removeEventListener("popstate", onPop);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("beforeunload", onUnload);
     };
   }, [onCancel]);
+
+  const leave = (fn) => {
+    after.current = fn;
+    history.back();
+  };
+  function changeDate(d) {
+    if (!d || d > today || d === date) return; // empty while typing, or a future day
+    if (dirty.current && !confirm("Zahodit změny?")) return;
+    leave(() => onDateChange(d));
+  }
 
   async function save() {
     setSaving(true);
     try {
-      const payload = { mood_score: mood, results: toResults(active, state, savedById) };
+      const payload = { date, mood_score: mood, note, results: toResults(active, state, savedById) };
       await (record ? api(`/records/${record.id}`, "PUT", payload) : api("/records", "POST", payload));
-      onDone();
+      leave(onDone);
     } catch (e) {
       setError(`Uložení selhalo: ${e.message}`);
     } finally {
@@ -191,7 +225,7 @@ export default function RecordEntryModal({ templates, record, onDone, onCancel }
       return (
         <>
           <p className="mb-3 text-neutral-400">Jak se dnes cítíš?</p>
-          <Rating label="Nálada" labels={MOODS} value={mood} onChange={setMood} />
+          <Rating label="Nálada" labels={MOODS} captions={MOOD_LABELS} value={mood} onChange={setMood} />
         </>
       );
     const v = state[current.id];
@@ -305,7 +339,7 @@ export default function RecordEntryModal({ templates, record, onDone, onCancel }
                       // Tap the chosen answer again to clear it (field becomes unfilled).
                       onClick={() => setField(f.key, v[f.key] === val ? null : val)}
                       className={`min-h-12 rounded-xl border-2 font-semibold transition active:scale-95 ${
-                        v[f.key] === val ? "border-violet-500 bg-violet-500/20 text-neutral-50" : "border-neutral-800 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
+                        v[f.key] === val ? "border-accent-500 bg-accent-500/20 text-neutral-50" : "border-neutral-800 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
                       }`}
                     >
                       {text}
@@ -318,13 +352,18 @@ export default function RecordEntryModal({ templates, record, onDone, onCancel }
                 <span className="mb-1 block text-neutral-400">{f.label}</span>
                 <input maxLength={f.max} placeholder={f.placeholder} value={v[f.key]} onChange={(e) => setField(f.key, e.target.value)} className={`${input} w-full`} />
               </label>
-            ) : f.kind === "rating" ? (
+            ) : f.kind === "rating" || f.kind === "count" ? (
               <div key={f.key}>
                 <p className="mb-1 text-neutral-400">
                   {f.label} {f.hint && <span className="text-sm text-neutral-500">({f.hint})</span>}
                 </p>
                 {goalHint(current, f.key)}
-                <Rating label={f.label} labels={f.labels} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
+                {f.kind === "count" ? (
+                  // Tap the chosen count again to clear it (unfilled, not 0).
+                  <Rating label={f.label} options={COUNTS} labels={COUNT_LABELS} value={v[f.key]} onChange={(n) => setField(f.key, v[f.key] === n ? null : n)} />
+                ) : (
+                  <Rating label={f.label} labels={f.labels} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
+                )}
               </div>
             ) : (
               <NumberField
@@ -368,7 +407,7 @@ export default function RecordEntryModal({ templates, record, onDone, onCancel }
           </h2>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => history.back()}
             aria-label="Zavřít bez uložení"
             autoFocus
             className="-mr-2 flex size-12 items-center justify-center rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-neutral-50"
@@ -378,14 +417,47 @@ export default function RecordEntryModal({ templates, record, onDone, onCancel }
         </header>
 
         <div className="flex flex-col gap-6 px-4 pt-4 pb-[max(2rem,calc(env(safe-area-inset-bottom)+1rem))]">
+          <section className={card}>
+            <label htmlFor="entry-date" className="mb-2 block text-lg font-semibold">
+              Den
+            </label>
+            <input id="entry-date" type="date" max={today} value={date} onChange={(e) => changeDate(e.target.value)} className={`${input} w-full`} />
+          </section>
           {sections.map((t) => (
             <section key={t.id} aria-labelledby={`entry-${t.id}`} className={card}>
-              <h3 id={`entry-${t.id}`} className="mb-3 text-lg font-semibold">
-                {t.name}
-              </h3>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 id={`entry-${t.id}`} className="text-lg font-semibold">
+                  {t.name}
+                </h3>
+                {/* Routine days: copy yesterday's answer for this section (gratitude is meant to be fresh each day). */}
+                {prevById[t.id] && t.type !== "gratitude" && (
+                  <button
+                    type="button"
+                    onClick={() => set(t.id, initialState([t], prevById)[t.id])}
+                    className="-my-2 flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-accent-300 hover:bg-neutral-800"
+                  >
+                    <Copy size={16} aria-hidden="true" /> Stejně jako včera
+                  </button>
+                )}
+              </div>
               {body(t)}
             </section>
           ))}
+
+          <section className={card}>
+            <label htmlFor="entry-note" className="mb-2 block text-lg font-semibold">
+              Poznámka ke dni <span className="text-sm font-normal text-neutral-500">(nepovinné)</span>
+            </label>
+            <textarea
+              id="entry-note"
+              rows={3}
+              maxLength={1000}
+              placeholder="Co se dnes dělo?"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className={`${input} w-full py-3`}
+            />
+          </section>
 
           {error && (
             <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-red-400">
