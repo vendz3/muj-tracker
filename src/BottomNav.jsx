@@ -28,7 +28,7 @@ export default function BottomNav({ section, onNavigate, onAdd, addDisabled }) {
           onClick={onAdd}
           disabled={addDisabled}
           aria-label="Záznam dne"
-          className="-mt-7 mb-1 flex size-16 items-center justify-center rounded-full bg-violet-600 text-on-accent shadow-md shadow-shade ring-4 ring-neutral-950 transition hover:bg-violet-500 active:scale-90 disabled:opacity-40"
+          className="-mt-7 mb-1 flex size-16 items-center justify-center rounded-full bg-violet-600 bg-(image:--accent-fill) text-on-accent shadow-md shadow-shade ring-4 ring-neutral-950 transition hover:bg-violet-500 active:scale-90 disabled:opacity-40"
         >
           <Plus size={32} strokeWidth={2.5} aria-hidden="true" />
         </button>

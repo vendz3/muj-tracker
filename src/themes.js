@@ -21,6 +21,14 @@ export const THEMES = [
     bg: "#FFFFFF", card: "#FFFFFF", text: "#111827", accent: "#5F7F6A", accent2: "#64748B", line: "#F3F4F6",
     accentStrong: "#4D6B57", accentText: "#4D6B57", onAccent: "#FFFFFF", accent2Text: "#475569",
   },
+  {
+    id: "prism", name: "Vibrant Prism", description: "Hluboká noční fialová a zářivé barvy duhy. Grafy, které hrají.", dark: true,
+    bg: "#110D22", card: "#1B1633", text: "#F5F3FF", accent: "#FF5E9C", accent2: "#4ECDC4", line: "#2D2650",
+    accentStrong: "#FF5E9C", accentText: "#FF8DB8", onAccent: "#14102A", accent2Text: "#4ECDC4",
+    // Optional extras: chart = palette cycled per chart card, fill = button gradient, glow = hover shadow.
+    chart: ["#4ECDC4", "#FF6B6B", "#FFE66D", "#C56CF0", "#32FF7E", "#5DADFF"],
+    fill: "linear-gradient(135deg, #FF5E9C, #FF9F43)", glow: "#FF5E9C80",
+  },
 ];
 export const DEFAULT_THEME = "midnight";
 const STORE = "lj-theme";
@@ -75,7 +83,11 @@ export function themeVars(t) {
     "--color-accent2-text": t.accent2Text,
     "--color-line": t.line,
     "--color-shade": t.dark ? "#00000066" : `${t.text}1f`,
+    // "" makes setProperty remove the variable, so switching away from a theme with extras leaves none behind.
+    "--accent-fill": t.fill ?? "",
+    "--accent-glow": t.glow ?? "",
   });
+  for (let i = 0; i < 6; i++) v[`--color-cycle-${i + 1}`] = t.chart?.[i] ?? "";
   if (!t.dark) Object.assign(v, { "--color-red-400": "#DC2626", "--color-red-500": "#EF4444" }); // readable errors on light
   return v;
 }

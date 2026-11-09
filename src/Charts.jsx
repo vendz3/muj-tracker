@@ -7,13 +7,17 @@ import { card } from "./ui.js";
 // Chart colors = CSS variables of the active theme (themes.js themeVars), so switching themes repaints the
 // charts with no re-render. Tints mix into the card color, not transparency, so stacked bars never show through.
 const tint = (v) => `color-mix(in srgb, var(${v}) 40%, var(--color-neutral-900))`;
+// --chart-n is set per card from the theme's palette (cycleVars); themes without one leave it invalid -> fallback.
 const C = {
-  a1: "var(--color-violet-500)", a2: "var(--color-accent2)", a3: tint("--color-violet-500"), a4: tint("--color-accent2"),
+  a1: "var(--chart-1, var(--color-violet-500))", a2: "var(--chart-2, var(--color-accent2))",
+  a3: `var(--chart-3, ${tint("--color-violet-500")})`, a4: `var(--chart-4, ${tint("--color-accent2")})`,
   gray: "var(--color-neutral-600)", mood: "var(--color-violet-400)",
   surface: "var(--color-neutral-900)", grid: "var(--color-neutral-800)", axis: "var(--color-neutral-700)",
   tick: "var(--color-neutral-500)", cursor: "var(--color-neutral-700)", goalInk: "var(--color-neutral-400)",
 };
 const useColors = () => C;
+// Card i gets the palette shifted by i, so every card leads with a different color.
+const cycleVars = (i) => Object.fromEntries([1, 2, 3, 4].map((n) => [`--chart-${n}`, `var(--color-cycle-${((i + n - 1) % 6) + 1})`]));
 const paint = (c, role) => c[role] ?? role;
 const num = (n) => n.toLocaleString("cs-CZ", { maximumFractionDigits: 1 });
 const axisNum = (n) => (n >= 1000 ? `${num(n / 1000)}k` : num(n)); // "2 400" would not fit the narrow axis
@@ -379,8 +383,8 @@ export default function Dashboard({ records, templates }) {
         <CardHeader title="Vývoj nálady" summary={moodSummary && { ...moodSummary, mode: "avg", unit: "" }} />
         <TemplateChart rows={moodRows} series={MOOD} scale="score" height={220} label={`Graf nálady za posledních ${DAYS} dní`} />
       </section>
-      {charts.map(({ template, groups, summary, weekGoals, emotions }) => (
-        <section key={template.id} className={card}>
+      {charts.map(({ template, groups, summary, weekGoals, emotions }, i) => (
+        <section key={template.id} className={card} style={cycleVars(i)}>
           <CardHeader title={template.name} summary={summary} aside={emotions && <EmotionTop grid={emotions} />} />
           {emotions && <EmotionGrid grid={emotions} title={template.name} />}
           {weekGoals.length > 0 && (

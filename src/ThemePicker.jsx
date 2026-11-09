@@ -27,9 +27,15 @@ export default function ThemePicker({ value, onChange }) {
             >
               <span className="h-2 w-10 rounded-full" style={{ background: t.text }} />
               <span className="flex gap-1">
-                <span className="size-3 rounded-full" style={{ background: t.accent }} />
-                <span className="size-3 rounded-full" style={{ background: t.accent2 }} />
-                <span className="size-3 rounded-full ring-1 ring-black/10" style={{ background: t.card }} />
+                {t.chart ? (
+                  t.chart.slice(0, 4).map((c) => <span key={c} className="size-2.5 rounded-full" style={{ background: c }} />)
+                ) : (
+                  <>
+                    <span className="size-3 rounded-full" style={{ background: t.accent }} />
+                    <span className="size-3 rounded-full" style={{ background: t.accent2 }} />
+                    <span className="size-3 rounded-full ring-1 ring-black/10" style={{ background: t.card }} />
+                  </>
+                )}
               </span>
             </span>
             <span className="min-w-0 flex-1">
