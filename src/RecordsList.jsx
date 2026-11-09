@@ -1,4 +1,4 @@
-import { MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
+import { BATTERY, MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
 import { card } from "./ui.js";
 
 export const fmtDate = (iso) => new Date(iso).toLocaleDateString("cs-CZ");
@@ -14,10 +14,11 @@ function summary(record, templatesById) {
   return record.results
     .map(({ template_id, result_data_json: d }) => {
       const type = templatesById[template_id]?.type;
-      if (type === "sleep") return "Spánek " + join([d.sleep_quality, d.sleep_hours != null && `${num(d.sleep_hours)} h`]);
+      if (type === "sleep")
+        return "Spánek " + join([d.sleep_quality, d.sleep_hours != null && `${num(d.sleep_hours)} h`, d.bedtime && `usnutí ${d.bedtime}`, d.waketime && `vstávání ${d.waketime}`]);
       if (type === "sport")
         return d.sports.length
-          ? d.sports.map((s) => `${s.name} ${s.intensity}` + (s.minutes != null ? ` (${s.minutes} min)` : "")).join(", ")
+          ? d.sports.map((s) => `${s.name} RPE ${s.rpe}` + (s.minutes != null ? ` (${s.minutes} min)` : "")).join(", ")
           : "bez sportu";
       if (type === "food")
         return join([
@@ -26,6 +27,7 @@ function summary(record, templatesById) {
           count(d.drinks, "alkohol", "bez alkoholu"),
           count(d.coffee, "káva", "bez kávy"),
           count(d.sweets, "sladké", "bez sladkého"),
+          d.meal_gap_h != null && `jídlo ${num(d.meal_gap_h)} h před spaním`,
         ]);
       if (type === "water") return `${num(d.liters)} l vody`;
       if (type === "emotions") return d.emotions.join(", ");
@@ -37,6 +39,9 @@ function summary(record, templatesById) {
       if (type === "gratitude") return `vděčnost: ${d.items.join(", ")}`;
       if (type === "meditation") return `meditace ${d.minutes} min`;
       if (type === "stress") return `stres ${d.stress}`;
+      if (type === "mind") return join([d.clarity != null && `jasnost ${d.clarity}`, d.energy != null && `energie ${d.energy}`, d.frustration != null && `frustrace ${d.frustration}`]);
+      if (type === "nap") return `nap ${d.minutes} min` + (d.grogginess != null ? `, rozespalost ${d.grogginess}` : "");
+      if (type === "social") return d.kinds.join(", ") + (d.battery != null ? ` · baterie: ${BATTERY[d.battery - 1].toLowerCase()}` : "");
       return null;
     })
     .filter(Boolean)

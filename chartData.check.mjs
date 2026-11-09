@@ -1,6 +1,6 @@
 // Self-check of dashboard chart data shaping. Run: node chartData.check.mjs (from frontend/)
 import assert from "node:assert/strict";
-import { METRICS, activities, emotionGrid, entryOrder, goalReport, lastDays, templateCharts, weekDays, weekSummary } from "./src/chartData.js";
+import { METRICS, activities, clockStats, emotionGrid, entryOrder, fmtClock, goalReport, lastDays, toClock, trainingLoad, templateCharts, weekDays, weekSummary } from "./src/chartData.js";
 import { goalStatus, goalText, meets } from "./src/goals.js";
 
 const T = [
@@ -12,7 +12,7 @@ const T = [
 ];
 const rec = (date, results) => ({ date, mood_score: 3, results: results.map(([template_id, result_data_json]) => ({ template_id, result_data_json })) });
 const records = [
-  rec("2026-11-07", [[1, { sleep_quality: 4, sleep_hours: 7.5 }], [2, { sports: [{ name: "běh", intensity: 2, minutes: 30 }, { name: "fotbal", intensity: 4 }] }], [3, { calories: 2100 }]]),
+  rec("2026-11-07", [[1, { sleep_quality: 4, sleep_hours: 7.5 }], [2, { sports: [{ name: "běh", rpe: 2, minutes: 30 }, { name: "fotbal", rpe: 4 }] }], [3, { calories: 2100 }]]),
   rec("2026-11-06", []), // day with no template filled at all
   // 2026-11-05 missing entirely -> gap
   rec("2026-11-04", [[2, { sports: [] }], [3, { quality: 3, drinks: 0 }], [5, { x: 1 }]]),
@@ -31,13 +31,13 @@ const col = (type, scale, key) => cards[type].groups.find((g) => g.scale === sca
 assert.deepEqual(col("sleep", "score", "sleep_quality"), [null, null, null, 4]);
 assert.deepEqual(col("sleep", "value", "sleep_hours"), [null, null, null, 7.5]);
 // Sport with minutes: stacked series per sport in settings order; "bez sportu" = 0, no result = gap;
-// intensity rides along for the tooltip; an untimed sport adds 0 and, with no minutes at all, is hidden.
+// RPE rides along for the tooltip; an untimed sport adds 0 and, with no minutes at all, is hidden.
 const sport = cards.sport.groups.find((g) => g.scale === "value");
 assert.deepEqual(sport.series.map((s) => s.label), ["běh"]);
 assert.deepEqual(sport.rows.map((r) => r.s1), [0, null, null, 30]);
 assert.equal(sport.rows[3].s1i, 2);
-assert.equal(sport.series[0].format(30, sport.rows[3]), "30 min · intenzita 2");
-assert.deepEqual(cards.sport.groups.map((g) => g.scale), ["value"]); // no fragmented intensity line
+assert.equal(sport.series[0].format(30, sport.rows[3]), "30 min · RPE 2");
+assert.deepEqual(cards.sport.groups.map((g) => g.scale), ["value"]); // no fragmented RPE line
 assert.deepEqual(cards.sport.summary, { value: 30, delta: null, mode: "sum", unit: "min" });
 // Food: partial days (only calories / no calories) -> null for the missing metric; never-tracked metrics hidden.
 assert.deepEqual(cards.food.groups.map((g) => g.scale), ["score", "count", "value"]);
@@ -49,24 +49,24 @@ assert.deepEqual(col("food", "value", "calories"), [null, null, null, 2100]);
 assert.deepEqual(lastDays([], new Date()), []);
 
 // 4 named sports + "ostatní": 2 keep their color, the rest fold into gray "Ostatní" (max 3 series).
-const many = [rec("2026-11-07", [[9, { sports: ["a", "b", "c", "d", "ostatní"].map((name, i) => ({ name, intensity: 3, minutes: 10 * (i + 1) })) }]])];
+const many = [rec("2026-11-07", [[9, { sports: ["a", "b", "c", "d", "ostatní"].map((name, i) => ({ name, rpe: 3, minutes: 10 * (i + 1) })) }]])];
 const fold = templateCharts(lastDays(many, new Date(2026, 10, 7, 12)), [{ id: 9, type: "sport", config_json: { sports: ["b", "a"], duration: true } }])[0].groups[0];
 assert.deepEqual(fold.series.map((s) => s.label), ["b", "a", "Ostatní"]);
 assert.deepEqual([fold.rows[0].s0, fold.rows[0].s1, fold.rows[0].so, fold.rows[0]._minutes], [20, 10, 30 + 40 + 50, 150]);
-assert.equal(fold.rows[0].soi, null); // several sports in one segment -> no single intensity
+assert.equal(fold.rows[0].soi, null); // several sports in one segment -> no single RPE
 
 // Activities mode: duration off (even if old days have minutes) or no minutes at all -> count per sport,
 // so an untimed activity is still visible; whole numbers; headline "N aktivit / 7 dní".
 const mixed = [
-  rec("2026-11-07", [[9, { sports: [{ name: "a", intensity: 4 }] }]]), // untimed today
-  rec("2026-11-06", [[9, { sports: [{ name: "a", intensity: 2, minutes: 40 }, { name: "b", intensity: 3, minutes: 20 }] }]]),
+  rec("2026-11-07", [[9, { sports: [{ name: "a", rpe: 4 }] }]]), // untimed today
+  rec("2026-11-06", [[9, { sports: [{ name: "a", rpe: 2, minutes: 40 }, { name: "b", rpe: 3, minutes: 20 }] }]]),
 ];
 const today = new Date(2026, 10, 7, 12);
 const count = templateCharts(lastDays(mixed, today), [{ id: 9, type: "sport", config_json: { sports: ["a", "b"], duration: false } }])[0];
 const cg = count.groups[0];
 assert.deepEqual(cg.series.map((s) => [s.label, s.mode, s.integer]), [["a", "count", true], ["b", "count", true]]);
 assert.deepEqual(cg.rows.map((r) => [r.s0, r.s1, r._count, r._minutes]), [[1, 1, 2, null], [1, 0, 1, null]]);
-assert.equal(cg.series[0].format(1, cg.rows[1]), "intenzita 4");
+assert.equal(cg.series[0].format(1, cg.rows[1]), "RPE 4");
 assert.deepEqual([count.summary.value, count.summary.mode, count.summary.unit(3)], [3, "sum", "aktivity"]);
 // Same data with duration on -> minutes; the untimed activity adds 0 min.
 const mins = templateCharts(lastDays(mixed, today), [{ id: 9, type: "sport", config_json: { sports: ["a", "b"], duration: true } }])[0];
@@ -126,7 +126,7 @@ assert.equal(eg.filledWeek, 3);
 assert.ok(!eg.rows.some((r) => r.name === "smutek"));
 assert.equal(emotionGrid(lastDays([rec("2026-11-07", [[1, { sleep_quality: 3 }]])], today), E), null);
 const ec = templateCharts(lastDays(emo, today), [E])[0];
-assert.deepEqual([ec.template.type, ec.groups.length, !!ec.emotions], ["emotions", 0, true]);
+assert.deepEqual([ec.template.type, ec.groups.length, !!ec.presence], ["emotions", 0, true]);
 console.log("OK");
 
 // Weekly goals count the last 7 rows (rolling), not the calendar week.
@@ -189,3 +189,47 @@ const rc = templateCharts(lastDays(rrecs, new Date(2026, 10, 9)), [rd])[0]; // t
 assert.deepEqual(rc.goals[0].status, { met: 3, of: 7, ok: false });
 assert.equal(templateCharts(lastDays([rrecs[1]], new Date(2026, 10, 5)), [rd])[0].rows.at(-1).minutes, null); // 5.11. has no record
 console.log("OK reading zero-fill");
+
+// Clock: bedtime after midnight wraps to 24+, so 23:30 and 00:30 are an hour apart; mean ± sd over 7 days.
+assert.equal(toClock("00:30", true), 24.5);
+assert.equal(toClock("23:30", true), 23.5);
+assert.equal(toClock("07:15"), 7.25);
+assert.equal(fmtClock(24.5), "0:30");
+assert.equal(fmtClock(23 + 40 / 60), "23:40");
+const cs = clockStats([{ b: 23 }, { b: 24 }, { b: null }], "b");
+assert.deepEqual([cs.mean, cs.sd], [23.5, 0.5]);
+const SL = { id: 1, type: "sleep", config_json: { times: true } };
+const slc = templateCharts(lastDays([rec("2026-11-07", [[1, { bedtime: "00:15", waketime: "07:00" }]])], today), [SL])[0];
+assert.deepEqual(slc.groups.map((g) => [g.scale, g.series.map((s) => s.key)]), [["clock", ["bedtime", "waketime"]]]);
+assert.equal(slc.rows.at(-1).bedtime, 24.25);
+
+// Training load: sRPE = rpe × minutes; ACWR only with >= 28 days, zone in words.
+const SP = { id: 2, type: "sport", config_json: { duration: true } };
+const load28 = [...Array(28)].map((_, i) => {
+  const d = new Date(2026, 10, 9 - 27 + i).toLocaleDateString("sv-SE");
+  return rec(d, [[2, { sports: i % 2 ? [{ name: "běh", rpe: 5, minutes: 40 }] : [] }]]); // every other day 200
+});
+const tl = trainingLoad(lastDays(load28, new Date(2026, 10, 9)), SP);
+assert.deepEqual([tl.acute, tl.chronic, tl.zone], [800, 700, "optimální"]); // last 7: 4 sessions; 14 sessions / 4 -> ACWR 1,14
+assert.equal(trainingLoad(lastDays(load28.slice(-10), new Date(2026, 10, 9)), SP).acwr, null);
+assert.equal(templateCharts(lastDays(load28, new Date(2026, 10, 9)), [SP])[0].load.acute, 800);
+
+// Social: presence grid in settings order (not by frequency), "nikdo" is a filled day without contact.
+const SO = { id: 16, type: "social", config_json: { kinds: ["nikdo", "krátce", "1:1", "velká skupina"], battery: true } };
+const soc = [
+  rec("2026-11-07", [[16, { kinds: ["velká skupina"], battery: 4 }]]),
+  rec("2026-11-06", [[16, { kinds: ["nikdo"] }]]),
+  rec("2026-11-05", [[16, { kinds: ["velká skupina", "1:1"], battery: 2 }]]),
+];
+const sc = templateCharts(lastDays(soc, today), [SO])[0];
+assert.deepEqual(sc.presence.rows.map((r) => r.name), ["nikdo", "1:1", "velká skupina"]);
+assert.deepEqual([sc.presence.filledWeek, sc.presence.contactWeek], [3, 2]);
+assert.deepEqual(sc.groups.map((g) => g.scale), ["score"]); // battery line
+const scNoBattery = templateCharts(lastDays([soc[1]], today), [SO])[0];
+assert.ok(scNoBattery.presence && scNoBattery.groups.length === 0, "grid-only card when no battery");
+
+// Nap: a recorded day without a nap is 0 minutes, a day without a record stays unfilled.
+const NP = { id: 15, type: "nap", config_json: { grogginess: true } };
+const np = templateCharts(lastDays([rec("2026-11-05", [[15, { minutes: 20, grogginess: 2 }]]), rec("2026-11-07", [])], today), [NP])[0];
+assert.deepEqual(np.rows.map((r) => r.minutes), [20, null, 0]);
+console.log("OK clock, load, social, nap");

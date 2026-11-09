@@ -16,9 +16,22 @@ const value = (key, label, unit, color, get = (d) => d[key]) => ({ key, label, u
 // scale "count" = whole number per day where 0 is real data (food 0–5+, 5 = "5 or more"): small bar rows, sum per week.
 const count = (key, label, color) => ({ key, label, color, unit: "", scale: "count", integer: true, better: "low", format: (v) => (v >= 5 ? "5+" : String(v)), get: (d) => d[key] });
 
+// scale "clock" = time of day as decimal hours (line, own axis), stored as "HH:MM". wrap: times before noon are
+// "after midnight" (bedtime 00:30 -> 24.5), so 23:30 and 00:30 sit next to each other.
+export const toClock = (s, wrap = false) => {
+  if (!s) return null;
+  const [h, m] = s.split(":").map(Number);
+  return h + m / 60 + (wrap && h < 12 ? 24 : 0);
+};
+export const fmtClock = (v) => {
+  const m = Math.round(v * 60) % (24 * 60);
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+};
+const clock = (key, label, color, wrap) => ({ key, label, color, unit: "", scale: "clock", format: fmtClock, get: (d) => toClock(d[key], wrap) });
+
 const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 export const METRICS = {
-  sleep: [score("sleep_quality", "Kvalita", A1), value("sleep_hours", "Spánek", "h", A2)],
+  sleep: [score("sleep_quality", "Kvalita", A1), clock("bedtime", "Usnutí", A3, true), clock("waketime", "Vstávání", A4), value("sleep_hours", "Spánek", "h", A2)],
   sport: [], // drawn by sportSeries(): stacked minutes or activities per sport
   // better: which end of the 1–5 scale is the good one (shown as "méně = lépe" where it isn't the usual high).
   food: [
@@ -27,7 +40,16 @@ export const METRICS = {
     count("coffee", "Kofein", A3),
     count("sweets", "Sladkosti", A4),
     value("calories", "Příjem", "kcal", A1),
+    // Own scale: hours before sleep must not share the kcal axis.
+    { ...value("meal_gap_h", "Jídlo před spaním", "h", A2), scale: "hours" },
   ],
+  mind: [
+    { ...score("clarity", "Jasnost", A1), better: "high" },
+    { ...score("energy", "Energie", A2), better: "high" },
+    { ...score("frustration", "Frustrace", A3), better: "low" },
+  ],
+  nap: [{ ...value("minutes", "Nap", "min", A1), zeroFill: true }, { ...score("grogginess", "Rozespalost", A2), better: "low" }],
+  social: [score("battery", "Sociální baterie", A1)],
   water: [value("liters", "Vypito", "l", A1)],
   // avgLine: dotted average line in the chart; zeroFill: a recorded day without the metric counts as 0 (not done),
   // a day with no record at all stays unfilled.
@@ -56,14 +78,42 @@ const SUMMARY = {
   reading: [["minutes", "avg", "min"]],
   meditation: [["minutes", "avg", "min"]],
   stress: [["stress", "avg", ""]],
+  mind: [["clarity", "avg", ""], ["energy", "avg", ""], ["frustration", "avg", ""]],
+  nap: [["minutes", "avg", "min"]],
+  social: [["battery", "avg", ""]], // the card shows contact days instead (presence aside)
 };
+
+// Bedtime / wake time over the last 7 rows: mean and standard deviation (rhythm consistency, "±25 min").
+export function clockStats(rows, key, days = WEEK) {
+  const xs = rows.slice(-days).map((r) => r[key]).filter((v) => v != null);
+  if (!xs.length) return null;
+  const mean = sum(xs) / xs.length;
+  return { mean, sd: Math.sqrt(sum(xs.map((x) => (x - mean) ** 2)) / xs.length) };
+}
+
+// Training load (session RPE): per day Σ rpe × minutes. Acute = last 7 days, chronic = last 28 days / 4,
+// ACWR = acute / chronic, only with >= 28 days of data. Zones per the usual sports-science bands.
+export const ACWR_ZONES = [[0.8, "nízká zátěž"], [1.3, "optimální"], [1.5, "zvýšená"], [Infinity, "riziko přetížení"]];
+export function trainingLoad(days, t) {
+  const loads = days.map(({ record }) => {
+    const sports = record?.results.find((r) => r.template_id === t.id)?.result_data_json?.sports;
+    return sports ? sum(sports.filter((s) => s.minutes != null && s.rpe != null).map((s) => s.rpe * s.minutes)) : null;
+  });
+  if (!loads.some((v) => v > 0)) return null;
+  const total = (n) => sum(loads.slice(-n).map((v) => v ?? 0));
+  const acute = total(WEEK);
+  const chronic = days.length >= 28 ? total(28) / 4 : null;
+  const acwr = chronic ? acute / chronic : null;
+  return { acute, chronic, acwr, zone: acwr == null ? null : ACWR_ZONES.find(([max]) => acwr < max)[1] };
+}
 
 const iso = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
-// Order of the day entry (RecordEntryModal): stress right after mood, then the rest by id.
+// Order of the day entry (RecordEntryModal): stress and "Hlava" right after mood (how was the day), then by id.
+const FIRST = ["stress", "mind"];
 export const entryOrder = (ts) => {
   const byId = [...ts].sort((a, b) => a.id - b.id);
-  return [...byId.filter((t) => t.type === "stress"), ...byId.filter((t) => t.type !== "stress")];
+  return [...FIRST.flatMap((type) => byId.filter((t) => t.type === type)), ...byId.filter((t) => !FIRST.includes(t.type))];
 };
 
 // The 7 days Mon–Sun of the week `offset` weeks from this one (0 = this week, -1 = last); future days have no record.
@@ -118,7 +168,7 @@ function sportSeries(t, data) {
   const kept = named.slice(0, hasRest ? 2 : 3);
   const group = (name) => (kept.includes(name) ? `s${kept.indexOf(name)}` : "so");
   const fmt = (key) => (v, row) => {
-    const intensity = row[`${key}i`] != null ? `intenzita ${row[`${key}i`]}` : "";
+    const intensity = row[`${key}i`] != null ? `RPE ${row[`${key}i`]}` : "";
     if (mode === "minutes") return `${v} min` + (intensity && ` · ${intensity}`);
     return v === 1 && intensity ? intensity : `${v}×` + (intensity && ` · ${intensity}`);
   };
@@ -134,7 +184,7 @@ function sportSeries(t, data) {
       const k = group(s.name);
       row[k] += amount(s);
       count[k] = (count[k] ?? 0) + 1;
-      row[`${k}i`] = count[k] === 1 ? s.intensity : null; // intensity only when one sport sits in the segment
+      row[`${k}i`] = count[k] === 1 ? s.rpe : null; // RPE only when one sport sits in the segment
     }
     return { ...row, _minutes: mode === "minutes" ? sum(series.map((s) => row[s.key])) : null };
   });
@@ -143,18 +193,23 @@ function sportSeries(t, data) {
 
 // Emotions: categories without a scale -> presence grid. One row per emotion felt in the window, ordered by
 // how often (ties keep settings order); cells: true = felt, false = day filled without it, null = not filled.
-export function emotionGrid(days, t) {
-  const data = days.map(({ record }) => record?.results.find((r) => r.template_id === t.id)?.result_data_json?.emotions ?? null);
+// Social contact uses the same grid, keyed "kinds", rows in settings order (depth / group size), not by frequency.
+const PRESENCE = { emotions: { key: "emotions", byFrequency: true }, social: { key: "kinds", byFrequency: false } };
+export const emotionGrid = (days, t) => presenceGrid(days, t);
+export function presenceGrid(days, t) {
+  const { key, byFrequency } = PRESENCE[t.type];
+  const data = days.map(({ record }) => record?.results.find((r) => r.template_id === t.id)?.result_data_json?.[key] ?? null);
   if (!data.some(Boolean)) return null;
-  const order = t.config_json?.emotions ?? [];
+  const order = t.config_json?.[key] ?? [];
   const total = {};
   for (const list of data) for (const e of list ?? []) total[e] = (total[e] ?? 0) + 1;
   const rank = (e) => (order.includes(e) ? order.indexOf(e) : order.length);
-  const names = Object.keys(total).sort((a, b) => total[b] - total[a] || rank(a) - rank(b));
+  const names = Object.keys(total).sort((a, b) => (byFrequency ? total[b] - total[a] : 0) || rank(a) - rank(b));
   const week = (e) => data.slice(-WEEK).filter((list) => list?.includes(e)).length;
   const rows = names.map((name) => ({ name, total: total[name], week: week(name), cells: data.map((list) => (list ? list.includes(name) : null)) }));
   const top = [...rows].sort((a, b) => b.week - a.week || b.total - a.total)[0];
-  return { dates: days.map((d) => d.date), rows, top: top.week ? top.name : null, filledWeek: data.slice(-WEEK).filter(Boolean).length };
+  const contactWeek = data.slice(-WEEK).filter((list) => list?.some((k) => k !== "nikdo")).length; // social: days with real contact
+  return { dates: days.map((d) => d.date), rows, top: top.week ? top.name : null, filledWeek: data.slice(-WEEK).filter(Boolean).length, contactWeek };
 }
 
 // Overview goal evaluation over templateCharts() cards: rate 0–1 per goal (daily: met / filled days, weekly:
@@ -181,9 +236,9 @@ export function goalReport(cards) {
 export function templateCharts(days, templates) {
   const cards = [];
   for (const t of entryOrder(templates)) {
+    const presence = PRESENCE[t.type] ? presenceGrid(days, t) : null;
     if (t.type === "emotions") {
-      const grid = emotionGrid(days, t);
-      if (grid) cards.push({ template: t, emotions: grid, groups: [], weekGoals: [] });
+      if (presence) cards.push({ template: t, presence, groups: [], weekGoals: [] });
       continue;
     }
     if (!METRICS[t.type]) continue;
@@ -200,10 +255,10 @@ export function templateCharts(days, templates) {
     // Copies, so per-card fields (goalInfo, avg) never leak into the shared METRICS objects.
     const series = metrics.filter((m) => rows.some((r) => (m.scale === "count" ? r[m.key] != null : r[m.key] > 0))).map((m) => ({ ...m }));
     for (const s of series) if (s.avgLine) s.avg = weekSummary(rows, s.key, "avg", rows.length)?.value;
-    const groups = ["score", "count", "value"]
+    const groups = ["score", "count", "clock", "value", "hours"]
       .map((scale) => ({ scale, series: series.filter((m) => m.scale === scale), rows }))
       .filter((g) => g.series.length);
-    if (!groups.length) continue;
+    if (!groups.length && !presence) continue; // social: the presence grid alone is enough for a card
     // Goals set in settings, keyed by the chart row that holds the metric; skipped if that row has no data.
     // Daily goals go on charts and next to averages; weekly ones become progress meters (weekGoals).
     const goals = {};
@@ -220,7 +275,7 @@ export function templateCharts(days, templates) {
     for (const g of groups) g.goalInfo = g.series.some((s) => s.stack) ? goals._minutes : g.series.length === 1 ? g.series[0].goalInfo : undefined;
     const pick = SUMMARY[t.type].find(([key]) => rows.some((r) => r[key] != null));
     const summary = pick && weekSummary(rows, pick[0], pick[1]);
-    cards.push({ template: t, groups, weekGoals, rows, goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
+    cards.push({ template: t, groups, weekGoals, rows, ...(presence && { presence }), ...(t.type === "sport" && { load: trainingLoad(days, t) }), goals: [...Object.values(goals), ...weekGoals], summary: summary && { ...summary, mode: pick[1], unit: pick[2], ...(goals[pick[0]] && { goalInfo: goals[pick[0]] }) } });
   }
   return cards;
 }

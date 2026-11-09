@@ -2,11 +2,12 @@
 // options: other values than the 1–5 scale (food counts 0–5+); labels / captions follow their order.
 // reverse: show the best value first (mood: 😄 on the left) without changing the stored values.
 const SCALE = [1, 2, 3, 4, 5];
-export default function Rating({ value, onChange, labels, captions, label, options, reverse = false }) {
+// cols: buttons per row (RPE 1–10 in 2 rows of 5 keeps every tap target >= 48 px on a phone).
+export default function Rating({ value, onChange, labels, captions, label, options, reverse = false, cols }) {
   const values = options ?? SCALE;
   const shown = reverse ? [...values].reverse() : values;
   return (
-    <div role="group" aria-label={label} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }}>
+    <div role="group" aria-label={label} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols ?? values.length}, minmax(0, 1fr))` }}>
       {shown.map((n) => {
         const i = values.indexOf(n); // labels / captions are indexed by value, not by screen position
         return (

@@ -9,6 +9,7 @@ const FLAGS = {
   sleep: [
     ["quality", "Sledovat kvalitu (1–5)"],
     ["hours", "Sledovat čas (hodiny)"],
+    ["times", "Sledovat čas usnutí a vstávání"],
   ],
   sport: [["duration", "Sledovat trvání (minuty)"]],
   reading: [
@@ -21,14 +22,22 @@ const FLAGS = {
     ["alcohol", "Sledovat alkohol (drinky)"],
     ["caffeine", "Sledovat kofein (šálky)"],
     ["sugar", "Sledovat sladkosti (porce)"],
+    ["last_meal", "Sledovat poslední jídlo před spaním"],
   ],
+  mind: [
+    ["clarity", "Sledovat mentální jasnost (1–5)"],
+    ["energy", "Sledovat odpolední energii (1–5)"],
+    ["frustration", "Sledovat frustraci (1–5)"],
+  ],
+  nap: [["grogginess", "Sledovat rozespalost po napu (1–5)"]],
+  social: [["battery", "Sledovat sociální baterii (1–5)"]],
 };
 
 // Settings sections: [heading, template types]. A type not listed lands in "Ostatní" so it never disappears.
 const CATEGORIES = [
-  ["Zdraví a tělo", ["sleep", "sport", "food", "water", "steps", "fasting", "medication"]],
+  ["Zdraví a tělo", ["sleep", "nap", "sport", "food", "water", "steps", "fasting", "medication"]],
   ["Produktivita", ["screen_time", "reading"]],
-  ["Duševní zdraví", ["emotions", "gratitude", "meditation", "stress"]],
+  ["Duševní zdraví", ["mind", "emotions", "social", "gratitude", "meditation", "stress"]],
 ];
 const KNOWN = CATEGORIES.flatMap(([, types]) => types);
 
@@ -36,6 +45,7 @@ const KNOWN = CATEGORIES.flatMap(([, types]) => types);
 const LISTS = {
   sport: { field: "sports", title: "Sporty na výběr", none: "Zatím žádné sporty.", inputLabel: "Nový sport", placeholder: "např. florbal" },
   emotions: { field: "emotions", title: "Emoce na výběr", none: "Zatím žádné emoce.", inputLabel: "Nová emoce", placeholder: "např. klid" },
+  social: { field: "kinds", title: "Typy kontaktu (pořadí = od žádného po největší skupinu)", none: "Zatím žádné typy.", inputLabel: "Nový typ kontaktu", placeholder: "např. rodina" },
   medication: { field: "items", title: "Co bereš (při zápisu jen klikneš)", none: "Zatím nic. Přidej svoje suplementy a léky.", inputLabel: "Nový suplement nebo lék", placeholder: "např. vitamín D" },
 };
 

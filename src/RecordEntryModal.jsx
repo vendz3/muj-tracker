@@ -14,9 +14,20 @@ const OTHER = "ostatní";
 // Food counts: 0 is a real answer ("none"), unfilled stays null. shortcut: 5 means "5 or more", add a number field if ever needed.
 const COUNTS = [0, 1, 2, 3, 4, 5];
 const COUNT_LABELS = ["0", "1", "2", "3", "4", "5+"];
+// Borg CR10 words for RPE 1–10 (index = value).
+const RPE_WORDS = ["", "velmi lehké", "lehké", "mírné", "trochu těžké", "těžké", "těžké", "velmi těžké", "velmi těžké", "skoro maximum", "maximum"];
+const RPE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// The day's record describes the night you woke up from, so bedtime is usually "yesterday evening".
+const clockH = (s) => {
+  const [h, m] = s.split(":").map(Number);
+  return h + m / 60;
+};
+export const sleptHours = (bed, wake) => (bed && wake ? Math.round(((clockH(wake) - clockH(bed) + 24) % 24) * 4) / 4 : null);
 const FIELDS = {
   sleep: [
     { key: "sleep_quality", flag: "quality", kind: "rating", label: "Kvalita spánku" },
+    { key: "bedtime", flag: "times", kind: "time", label: "Usnul(a) jsem", hint: "včera večer" },
+    { key: "waketime", flag: "times", kind: "time", label: "Vstal(a) jsem" },
     { key: "sleep_hours", flag: "hours", kind: "number", label: "Čas spánku (hodiny)", step: 0.5, max: 24, slider: [12, 0.5], placeholder: "např. 7,5" },
   ],
   food: [
@@ -25,6 +36,17 @@ const FIELDS = {
     { key: "drinks", flag: "alcohol", kind: "count", label: "Alkohol (drinky)", hint: "1 drink = pivo 0,5 l · víno 2 dl · panák 4 cl" },
     { key: "coffee", flag: "caffeine", kind: "count", label: "Kofein (šálky)", hint: "káva, energy drink, silný čaj" },
     { key: "sweets", flag: "sugar", kind: "count", label: "Sladkosti (porce)", hint: "sušenka, zákusek, slazený nápoj" },
+    { key: "meal_gap_h", flag: "last_meal", kind: "number", label: "Poslední jídlo před spaním (hodiny)", hint: "0 = těsně před spaním", step: 0.5, max: 12, slider: [8, 0.5], placeholder: "např. 3" },
+  ],
+  mind: [
+    { key: "clarity", flag: "clarity", kind: "rating", label: "Mentální jasnost", hint: "1 = mlha, 5 = křišťálově jasno" },
+    { key: "energy", flag: "energy", kind: "rating", label: "Odpolední energie (14–16 h)", hint: "1 = padám, 5 = plný(á) energie" },
+    { key: "frustration", flag: "frustration", kind: "rating", label: "Frustrace / podrážděnost", hint: "1 = klid, 5 = všechno mě štve" },
+  ],
+  // needs: shown (and saved) only when that field is filled; grogginess means nothing without a nap.
+  nap: [
+    { key: "minutes", kind: "number", label: "Délka napu (minuty)", hint: "nespal(a) jsi? nech prázdné", step: 1, min: 1, max: 180, slider: [90, 5], placeholder: "např. 20" },
+    { key: "grogginess", flag: "grogginess", needs: "minutes", kind: "rating", label: "Rozespalost po probuzení", hint: "1 = svěží, 5 = jako po narkóze" },
   ],
   water: [{ key: "liters", kind: "number", label: "Vypito (litry)", step: 0.25, max: 20, slider: [5, 0.25], placeholder: "např. 1,5" }],
   steps: [{ key: "steps", kind: "number", label: "Počet kroků", step: 1, max: 200000, slider: [30000, 500], placeholder: "např. 8000" }],
@@ -44,6 +66,9 @@ const PICKS = {
   emotions: { config: "emotions", data: "emotions", prompt: "Jaké emoce jsi dnes cítil(a)? Zaškrtni všechny, které přišly." },
   medication: { config: "items", data: "taken", prompt: "Co sis dnes vzal(a)?", none: "Zatím nemáš co vybrat. Přidej si suplementy a léky v Nastavení → Šablony." },
 };
+// Social contact: kinds from settings ("nikdo" excludes the rest) + optional "social battery" after real contact.
+const NOBODY = "nikdo";
+export const BATTERY = ["Vysálo mě", "Spíš vysálo", "Neutrální", "Spíš nabilo", "Nabilo mě"];
 // Fasting yes -> hours: kept from the saved day if it was already a fast (history doesn't change with settings), else from settings.
 const fastingHours = (t, saved) => (saved?.fasted && saved.hours != null ? saved.hours : t.config_json.full_day ? 24 : t.config_json.hours);
 const GRATITUDE = 3; // gratitude journal: exactly three separate "things I'm grateful for"
@@ -58,7 +83,8 @@ function goalHint(t, key) {
     .map((m) => goalText(t.config_json.goals[m.key], m.dir, m.unit) + (m.per && m.period === "week" ? ` ${m.per}` : ""));
   return parts.length ? <span className="block text-sm text-neutral-500">Cíl: {parts.join(" · ")}</span> : null;
 }
-const empty = (f) => (f.kind === "number" || f.kind === "text" ? "" : null);
+const empty = (f) => (f.kind === "number" || f.kind === "text" || f.kind === "time" ? "" : null);
+const filled = (v, f) => v[f.needs] != null && v[f.needs] !== "";
 const toValue = (f, v) => (f.kind === "number" ? Number(v) : f.kind === "text" ? v.trim() : v);
 
 // Turn saved result JSON into editable form state (prefill when editing a day).
@@ -67,7 +93,8 @@ function initialState(templates, saved) {
   for (const t of templates) {
     const d = saved[t.id] ?? {};
     if (t.type === "sport")
-      state[t.id] = Object.fromEntries((d.sports ?? []).map((s) => [s.name, { intensity: s.intensity, minutes: s.minutes ?? "" }]));
+      state[t.id] = Object.fromEntries((d.sports ?? []).map((s) => [s.name, { rpe: s.rpe, minutes: s.minutes ?? "" }]));
+    else if (t.type === "social") state[t.id] = { kinds: d.kinds ?? [], battery: d.battery ?? null };
     else if (PICKS[t.type]) state[t.id] = d[PICKS[t.type].data] ?? [];
     else if (t.type === "gratitude") state[t.id] = Array.from({ length: GRATITUDE }, (_, i) => d.items?.[i] ?? "");
     else state[t.id] = Object.fromEntries((FIELDS[t.type] ?? []).map((f) => [f.key, d[f.key] ?? empty(f)]));
@@ -84,7 +111,7 @@ function toResults(templates, state, savedById) {
       const minutes = showMinutes(t, savedById[t.id]);
       const sports = Object.entries(v).map(([name, s]) => ({
         name,
-        intensity: s.intensity,
+        rpe: s.rpe,
         ...(minutes && s.minutes !== "" && { minutes: Number(s.minutes) }),
       }));
       results.push({ template_id: t.id, data: { sports } });
@@ -94,6 +121,11 @@ function toResults(templates, state, savedById) {
       if (v.length) results.push({ template_id: t.id, data: { [PICKS[t.type].data]: v } }); // none ticked = not filled
       continue;
     }
+    if (t.type === "social") {
+      const keepBattery = v.battery != null && !v.kinds.includes(NOBODY) && (t.config_json.battery || savedById[t.id]?.battery != null);
+      if (v.kinds.length) results.push({ template_id: t.id, data: { kinds: v.kinds, ...(keepBattery && { battery: v.battery }) } });
+      continue;
+    }
     if (t.type === "gratitude") {
       const items = v.map((s) => s.trim()).filter(Boolean);
       if (items.length) results.push({ template_id: t.id, data: { items } });
@@ -101,11 +133,14 @@ function toResults(templates, state, savedById) {
     }
     const data = {};
     for (const f of shownFields(t, savedById[t.id])) {
-      if (v[f.key] === empty(f)) continue;
+      if (v[f.key] === empty(f) || (f.needs && !filled(v, f))) continue;
       const value = toValue(f, v[f.key]);
       if (value !== "") data[f.key] = value; // whitespace-only text counts as empty
     }
     if (t.type === "fasting" && data.fasted) data.hours = fastingHours(t, savedById[t.id]);
+    // Both times given, hours left empty -> computed, so nobody has to do the math.
+    if (t.type === "sleep" && data.sleep_hours == null && t.config_json.hours && sleptHours(data.bedtime, data.waketime))
+      data.sleep_hours = sleptHours(data.bedtime, data.waketime);
     if (Object.keys(data).length) results.push({ template_id: t.id, data });
   }
   return results;
@@ -268,6 +303,36 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
           ))}
         </div>
       );
+    if (current.type === "social") {
+      const options = current.config_json.kinds ?? [];
+      const names = [...options, ...v.kinds.filter((k) => !options.includes(k))]; // kinds saved that day stay on offer
+      const toggle = (k) => {
+        const kinds = v.kinds.includes(k) ? v.kinds.filter((x) => x !== k) : k === NOBODY ? [NOBODY] : [...v.kinds.filter((x) => x !== NOBODY), k];
+        set(current.id, { ...v, kinds });
+      };
+      const contact = v.kinds.some((k) => k !== NOBODY);
+      return (
+        <>
+          <p className="mb-3 text-neutral-400">S kým jsi dnes byl(a) v kontaktu? Zaškrtni všechno, co platí.</p>
+          <div className="space-y-2">
+            {names.map((k) => (
+              <label key={k} className={checkRow}>
+                <input type="checkbox" className={checkbox} checked={v.kinds.includes(k)} onChange={() => toggle(k)} />
+                <span>{k}</span>
+              </label>
+            ))}
+          </div>
+          {contact && (current.config_json.battery || saved?.battery != null) && (
+            <div className="mt-4">
+              <p className="mb-1 text-neutral-400">
+                Sociální baterie <span className="text-sm text-neutral-500">(dodalo ti to energii, nebo ji vzalo?)</span>
+              </p>
+              <Rating label="Sociální baterie" captions={BATTERY} value={v.battery} onChange={(n) => set(current.id, { ...v, battery: n })} />
+            </div>
+          )}
+        </>
+      );
+    }
     if (current.type === "sport") {
       const names = [...current.config_json.sports, OTHER];
       // Keep sports saved for this day even if they were removed from settings since.
@@ -276,7 +341,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       const toggle = (name) => {
         const next = { ...v };
         if (name in next) delete next[name];
-        else next[name] = { intensity: 3, minutes: "" };
+        else next[name] = { rpe: 5, minutes: "" };
         set(current.id, next);
       };
       const setSport = (name, patch) => set(current.id, { ...v, [name]: { ...v[name], ...patch } });
@@ -292,8 +357,10 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 </label>
                 {name in v && (
                   <div className="mt-2 mb-3 space-y-2 pl-2">
-                    <p className="text-sm text-neutral-500">Intenzita</p>
-                    <Rating label={`Intenzita ${name}`} value={v[name].intensity} onChange={(n) => setSport(name, { intensity: n })} />
+                    <p className="text-sm text-neutral-500">
+                      Námaha (RPE 1–10){v[name].rpe != null && <span className="text-neutral-300"> · {RPE_WORDS[v[name].rpe]}</span>}
+                    </p>
+                    <Rating label={`Námaha ${name}`} options={RPE} cols={5} value={v[name].rpe} onChange={(n) => setSport(name, { rpe: n })} />
                     {minutes && (
                       <NumberField
                         id={`entry-sport-${name}`}
@@ -316,8 +383,9 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       );
     }
     if (FIELDS[current.type]) {
-      const fields = shownFields(current, saved);
+      const fields = shownFields(current, saved).filter((f) => !f.needs || filled(v, f));
       const setField = (key, value) => set(current.id, { ...v, [key]: value });
+      const autoHours = current.type === "sleep" && sleptHours(v.bedtime, v.waketime);
       return (
         <div className="space-y-4">
           {PROMPTS[current.type] && <p className="text-neutral-400">{PROMPTS[current.type]}</p>}
@@ -347,6 +415,13 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                   ))}
                 </div>
               </div>
+            ) : f.kind === "time" ? (
+              <label key={f.key} className="block">
+                <span className="mb-1 block text-neutral-400">
+                  {f.label} {f.hint && <span className="text-sm text-neutral-500">({f.hint})</span>}
+                </span>
+                <input type="time" value={v[f.key]} onChange={(e) => setField(f.key, e.target.value)} className={`${input} w-full`} />
+              </label>
             ) : f.kind === "text" ? (
               <label key={f.key} className="block">
                 <span className="mb-1 block text-neutral-400">{f.label}</span>
@@ -372,7 +447,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 name={f.label}
                 label={
                   <>
-                    {f.label} {goalHint(current, f.key)}
+                    {f.label} {f.hint && <span className="text-sm text-neutral-500">({f.hint})</span>} {goalHint(current, f.key)}
                   </>
                 }
                 value={v[f.key]}
@@ -381,7 +456,8 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 max={f.max}
                 step={f.step}
                 slider={f.slider}
-                placeholder={f.placeholder}
+                // Both sleep times given: show what saving will compute when hours stay empty.
+                placeholder={f.key === "sleep_hours" && autoHours ? `vypočteno: ${String(autoHours).replace(".", ",")} h` : f.placeholder}
               />
             ),
           )}

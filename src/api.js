@@ -3,11 +3,15 @@
 const T = "tracker_templates";
 const R = "tracker_records";
 
+// Social contact types, ordered by depth / group size (charts keep this order). "nikdo" is exclusive.
+export const SOCIAL_KINDS = ["nikdo", "krátce", "online", "1:1", "malá skupina", "velká skupina"];
+
 // Default templates for a new user; a few starter goals so the Overview isn't empty on day one.
+// Types added later are appended to existing users' lists too (templates()), switched off.
 const SEED = [
-  ["sleep", "Spánek", { quality: true, hours: true, goals: { sleep_hours: { value: 7 } } }, true],
+  ["sleep", "Spánek", { quality: true, hours: true, times: false, goals: { sleep_hours: { value: 7 } } }, true],
   ["sport", "Sport", { sports: [], duration: false, goals: { week_activities: { value: 3 } } }, true],
-  ["food", "Jídlo", { calories: true, quality: true, alcohol: false, caffeine: false, sugar: false }, true],
+  ["food", "Jídlo", { calories: true, quality: true, alcohol: false, caffeine: false, sugar: false, last_meal: false }, true],
   ["water", "Pitný režim", { goals: { liters: { value: 2 } } }, true],
   ["emotions", "Emoce", { emotions: ["radost", "smutek", "strach", "hněv", "překvapení", "znechucení"] }, true],
   ["steps", "Kroky", {}, false],
@@ -18,28 +22,40 @@ const SEED = [
   ["gratitude", "Deník vděčnosti", {}, false],
   ["meditation", "Meditace", {}, false],
   ["stress", "Stres", {}, false],
+  ["mind", "Hlava", { clarity: true, energy: true, frustration: true }, false],
+  ["nap", "Power nap", { grogginess: true }, false],
+  ["social", "Sociální kontakt", { kinds: SOCIAL_KINDS, battery: true }, false],
 ].map(([type, name, config_json, is_active], i) => ({ id: i + 1, name, type, config_json, is_active }));
 
 const load = (key) => JSON.parse(localStorage.getItem(key) ?? "null");
 const store = (key, v) => localStorage.setItem(key, JSON.stringify(v));
 const isoDay = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time, like App.jsx
 
-// Food used to rate alcohol / caffeine / sugar 1–5 (no zero); now they are counts 0–5+. Old 1 meant "none",
-// so old n -> n - 1 under the new key. Keyed on which keys exist, so running it twice changes nothing.
+// Old data formats -> current, in place. Keyed on which keys exist, so running it twice changes nothing.
+// - Food used to rate alcohol / caffeine / sugar 1–5 (no zero); now counts 0–5+. Old 1 meant "none": n -> n - 1.
+// - Sport intensity 1–5 became RPE 1–10 (Borg CR10): n -> 2n.
 const FOOD_COUNTS = [["alcohol", "drinks"], ["caffeine", "coffee"], ["sugar", "sweets"]];
-export function migrateFood(records, templates) {
-  const food = new Set(templates.filter((t) => t.type === "food").map((t) => t.id));
+export function migrate(records, templates) {
+  const typeOf = Object.fromEntries(templates.map((t) => [t.id, t.type]));
   let changed = false;
   for (const r of records)
     for (const res of r.results ?? []) {
       const d = res.result_data_json;
-      if (!food.has(res.template_id) || !d) continue;
-      for (const [old, key] of FOOD_COUNTS)
-        if (typeof d[old] === "number") {
-          if (d[key] == null) d[key] = Math.max(0, d[old] - 1);
-          delete d[old];
-          changed = true;
-        }
+      if (!d) continue;
+      if (typeOf[res.template_id] === "food")
+        for (const [old, key] of FOOD_COUNTS)
+          if (typeof d[old] === "number") {
+            if (d[key] == null) d[key] = Math.max(0, d[old] - 1);
+            delete d[old];
+            changed = true;
+          }
+      if (typeOf[res.template_id] === "sport")
+        for (const s of d.sports ?? [])
+          if (typeof s.intensity === "number") {
+            if (s.rpe == null) s.rpe = Math.min(10, s.intensity * 2);
+            delete s.intensity;
+            changed = true;
+          }
     }
   return changed;
 }
@@ -47,6 +63,12 @@ export function migrateFood(records, templates) {
 function templates() {
   let t = load(T);
   if (!t?.length) store(T, (t = SEED));
+  // New template types reach existing users switched off, so they show up in Nastavení -> Šablony.
+  const missing = SEED.filter((s) => !t.some((x) => x.type === s.type));
+  if (missing.length) {
+    let id = Math.max(0, ...t.map((x) => x.id));
+    store(T, (t = [...t, ...missing.map((s) => ({ ...s, id: ++id, is_active: false }))]));
+  }
   return t;
 }
 
@@ -80,7 +102,7 @@ function saveRecord(records, record, body) {
 export async function api(path, method = "GET", body) {
   const [, res, id] = path.split("/");
   const records = load(R) ?? [];
-  if (migrateFood(records, templates())) store(R, records);
+  if (migrate(records, templates())) store(R, records);
   if (res === "templates") {
     const list = templates();
     if (method === "GET") return list;
@@ -121,7 +143,7 @@ export async function importData(data) {
     throw new Error("soubor neobsahuje platné šablony");
   if (!Array.isArray(r) || !r.every((x) => Number.isInteger(x?.id) && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && Array.isArray(x.results)))
     throw new Error("soubor neobsahuje platné záznamy");
-  migrateFood(r, t);
+  migrate(r, t);
   store(T, t);
   store(R, r);
 }

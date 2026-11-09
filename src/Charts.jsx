@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MOODS } from "./RecordEntryModal.jsx";
-import { DAYS, WEEK, activities, lastDays, templateCharts, weekDays, weekSummary } from "./chartData.js";
+import { DAYS, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { card } from "./ui.js";
 
@@ -100,6 +100,8 @@ function GoalStatus({ info, short = false }) {
 // week: 7-day chart, every day labelled with its weekday. series[0].avg: dotted average line (one-series charts).
 export function TemplateChart({ rows, series, scale, height = 160, label, compact = false, showXAxis = true, goal, week = false }) {
   const isScore = scale === "score";
+  const isClock = scale === "clock"; // time of day: a line on its own axis fitted to the data
+  const isLine = isScore || isClock;
   const c = useColors();
   const tick = { fill: c.tick, fontSize: 11 };
   const g = goal?.goal;
@@ -113,7 +115,7 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
           <CartesianGrid stroke={c.grid} vertical={false} />
           <XAxis dataKey="date" tickFormatter={week ? weekTick : shortDate} tick={tick} stroke={c.axis} minTickGap={week ? 0 : 16} interval={week ? 0 : "preserveEnd"} hide={!showXAxis} />
           <YAxis
-            domain={isScore ? [1, 5] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
+            domain={isScore ? [1, 5] : isClock ? [(min) => Math.floor(min * 2) / 2 - 0.5, (max) => Math.ceil(max * 2) / 2 + 0.5] : intTop ? [0, intTop] : [0, (max) => niceMax(Math.max(max, g ? goalTop(g) : 0))]} // keep the goal on screen
             tickCount={5}
             ticks={isScore ? (compact ? [1, 3, 5] : [1, 2, 3, 4, 5]) : intTop ? (compact ? [0, intTop] : [...Array(intTop + 1).keys()]) : undefined}
             interval={compact ? 0 : "preserveEnd"} // short rows: recharts would drop the 1/3 labels as "overlapping"
@@ -121,9 +123,9 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
             tick={tick}
             stroke={c.axis}
             width={52}
-            tickFormatter={isScore ? undefined : axisNum}
+            tickFormatter={isScore ? undefined : isClock ? fmtClock : axisNum}
           />
-          <Tooltip content={<ChartTooltip series={series} />} cursor={isScore ? { stroke: c.cursor } : { fill: c.cursor, fillOpacity: 0.15 }} />
+          <Tooltip content={<ChartTooltip series={series} />} cursor={isLine ? { stroke: c.cursor } : { fill: c.cursor, fillOpacity: 0.15 }} />
           {series.length > 1 && !compact && (
             <Legend
               verticalAlign="top"
@@ -140,7 +142,7 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
           {/* Average: faint dotted line under the bars, quieter than the dashed goal line. */}
           {avg != null && <ReferenceLine y={avg} stroke={c.tick} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="1 3" />}
           {series.map((s) =>
-            isScore ? (
+            isLine ? (
               <Line
                 key={s.key}
                 dataKey={s.key}
@@ -264,7 +266,8 @@ const dayLabel = (iso) => new Date(iso).toLocaleDateString("cs-CZ", { weekday: "
 
 // Emotions = presence grid: a row per emotion, a column per day. Filled dot = felt that day, faint dot = day
 // filled in without it, empty = not filled in. One accent color: the row name carries identity.
-function EmotionGrid({ grid, title }) {
+// words: legend for [felt, filled without it] (emotions vs social contact).
+function EmotionGrid({ grid, title, words = ["cítil(a)", "vyplněno bez ní"] }) {
   const n = grid.dates.length;
   const cols = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
   const ticks = [0, Math.floor((n - 1) / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i);
@@ -304,14 +307,45 @@ function EmotionGrid({ grid, title }) {
       </div>
       <p className="mt-2 flex items-center gap-3 text-[11px] text-neutral-500">
         <span className="flex items-center gap-1">
-          <span className="size-2.5 rounded-full bg-accent-500" /> cítil(a)
+          <span className="size-2.5 rounded-full bg-accent-500" /> {words[0]}
         </span>
         <span className="flex items-center gap-1">
-          <span className="size-1 rounded-full bg-neutral-700" /> vyplněno bez ní
+          <span className="size-1 rounded-full bg-neutral-700" /> {words[1]}
         </span>
         <span>prázdné = nevyplněno</span>
       </p>
     </div>
+  );
+}
+
+// Social: days with real contact (anything but "nikdo") out of the filled ones.
+function ContactDays({ grid }) {
+  return (
+    <div className="text-right">
+      <p className="text-lg leading-tight font-semibold text-neutral-100">
+        {grid.contactWeek}/{grid.filledWeek}
+      </p>
+      <p className="text-xs text-neutral-500">dní s kontaktem za {WEEK} dní</p>
+    </div>
+  );
+}
+
+// Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
+function LoadLine({ load, timed }) {
+  if (!timed) return <p className="mb-2 text-xs text-neutral-500">Zátěž (RPE × minuty) se spočítá, když zapneš sledování trvání.</p>;
+  if (!load) return null;
+  return (
+    <p className="mb-2 text-xs text-neutral-400">
+      Zátěž {WEEK} dní <b className="font-semibold text-neutral-100">{statNum(load.acute)}</b>
+      {" · "}
+      {load.acwr == null ? (
+        "poměr akutní/chronická po 28 dnech dat"
+      ) : (
+        <>
+          akutní/chronická <b className="font-semibold text-neutral-100">{num(load.acwr)}</b> – {load.zone}
+        </>
+      )}
+    </p>
   );
 }
 
@@ -327,8 +361,13 @@ function EmotionTop({ grid }) {
 // Several 1–5 scores: one small chart per metric, stacked and aligned on the same days, instead of
 // crossing lines in one chart. The row label names the metric and its weekly average.
 // scale "count" (food 0–5+): same rows as bars, with the 7-day total instead of the average.
+// scale "clock" (bedtime / wake): average time and its spread, the rhythm's consistency ("Ø 23:40 · ±25 min").
 function ScoreRows({ rows, series, title, scale = "score" }) {
   const counts = scale === "count";
+  const clockText = (key) => {
+    const st = clockStats(rows, key);
+    return st && `Ø ${fmtClock(st.mean)} · ±${Math.round(st.sd * 60)} min`;
+  };
   const c = useColors();
   return (
     <div className="space-y-1">
@@ -343,7 +382,7 @@ function ScoreRows({ rows, series, title, scale = "score" }) {
                 {s.label}
               </p>
               <p className="text-xs text-neutral-500">
-                {stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}
+                {scale === "clock" ? (clockText(s.key) ?? "–") : stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}
                 {s.better === "low" && <span className="block text-[11px] text-neutral-600">méně = lépe</span>}
               </p>
               {s.goalInfo && (
@@ -394,9 +433,9 @@ function CardBody({ chart: { template, groups, summary, weekGoals }, week = fals
     <div className="space-y-3">
       {groups.map((g) => (
         <div key={g.scale}>
-          {(g.scale === "score" && g.series.length > 1) || g.scale === "count" ? (
+          {(g.scale === "score" && g.series.length > 1) || g.scale === "count" || g.scale === "clock" ? (
             <>
-              <p className="mb-1 text-xs text-neutral-500">{g.scale === "count" ? "Počet za den" : "Hodnocení 1–5"}</p>
+              <p className="mb-1 text-xs text-neutral-500">{{ count: "Počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
               <ScoreRows rows={g.rows} series={g.series} title={template.name} scale={g.scale} />
             </>
           ) : (
@@ -533,6 +572,7 @@ function SportCard({ month, records }) {
       }}
     >
       <CardHeader title={month.template.name} summary={chart?.summary} />
+      <LoadLine load={month.load} timed={month.template.config_json?.duration} />
       <div className="mb-2 inline-flex rounded-xl bg-neutral-800 p-0.5" role="group" aria-label="Období grafu">
         {seg("week", "Týden")}
         {seg("month", "Měsíc")}
@@ -585,8 +625,14 @@ export default function Dashboard({ records, templates }) {
             <SportCard month={chart} records={records} />
           ) : (
             <>
-              <CardHeader title={chart.template.name} summary={chart.summary} aside={chart.emotions && <EmotionTop grid={chart.emotions} />} />
-              {chart.emotions && <EmotionGrid grid={chart.emotions} title={chart.template.name} />}
+              <CardHeader
+                title={chart.template.name}
+                summary={chart.summary}
+                aside={chart.presence && (chart.template.type === "social" ? <ContactDays grid={chart.presence} /> : <EmotionTop grid={chart.presence} />)}
+              />
+              {chart.presence && (
+                <EmotionGrid grid={chart.presence} title={chart.template.name} words={chart.template.type === "social" ? ["ano", "vyplněno bez něj"] : undefined} />
+              )}
               <CardBody chart={chart} />
             </>
           )}
