@@ -1,13 +1,23 @@
-import { Check, Copy, X } from "lucide-react";
+import { Angry, Annoyed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Carrot, Check, Cloud, CloudFog, CloudSun, Cloudy, Copy, Frown, Laugh, Meh, Pizza, Salad, Sandwich, Smile, Soup, Sparkles, Sun, X } from "lucide-react";
 import { fmtHM, shiftClock } from "./chartData.js";
 import { Fragment, useEffect, useRef, useState } from "react";
 import Rating from "./Rating.jsx";
 import { api } from "./api.js";
 import { SECTIONS, groupTemplates } from "./sections.js";
-import { GOALS, goalText } from "./goals.js";
+import { GOALS, dayXP, goalText } from "./goals.js";
 import { card, checkRow, checkbox, input, primary, secondary } from "./ui.js";
 
-export const MOODS = ["😞", "🙁", "😐", "🙂", "😄"];
+export const MOODS = [Frown, Annoyed, Meh, Smile, Laugh];
+// Mood colour: muted red for bad days, neutral middle, the theme accent for great ones (always next to a word or number).
+export const MOOD_TONES = ["text-red-400", "text-red-300", "text-neutral-400", "text-accent-400", "text-accent2-text"];
+export const MoodIcon = ({ score, size = 20 }) => {
+  const I = MOODS[score - 1];
+  return <I size={size} strokeWidth={1.75} className={MOOD_TONES[score - 1]} aria-hidden="true" />;
+};
+// 1–5 icon scales. CALM: 1 = calm, for scales where low is good (stress, irritability, grogginess).
+const FACES = [Frown, Annoyed, Meh, Smile, Laugh];
+const CALM = [Laugh, Smile, Meh, Annoyed, Angry];
+const BATTERY_ICONS = [Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging];
 export const MOOD_LABELS = ["Hrozná", "Špatná", "Neutrální", "Dobrá", "Skvělá"];
 const OTHER = "ostatní";
 
@@ -26,7 +36,7 @@ const clockH = (s) => {
 export const sleptHours = (bed, wake) => (bed && wake ? Math.round((Math.round(((clockH(wake) - clockH(bed) + 24) % 24) * 60) / 60) * 1000) / 1000 : null);
 const FIELDS = {
   sleep: [
-    { key: "sleep_quality", flag: "quality", kind: "rating", label: "Kvalita spánku", hint: "1 = převaloval(a) jsem se, 5 = spal(a) jsem jako dřevo" },
+    { key: "sleep_quality", flag: "quality", kind: "rating", label: "Kvalita spánku", labels: FACES, reverse: true },
     { key: "bedtime", flag: "times", kind: "time", label: "Usnul(a) jsem", hint: "včera večer", range: ["20:00", 480], base: "23:00", nudge: 5 },
     { key: "waketime", flag: "times", kind: "time", label: "Vstal(a) jsem", range: ["04:00", 480], base: "07:00", nudge: 5 },
     { key: "sleep_hours", flag: "hours", kind: "number", label: "Naspáno", hm: true, max: 24, slider: [12, 5], base: 7.5, nudge: 5 },
@@ -34,34 +44,35 @@ const FIELDS = {
   // group: small heading inside the card when it changes. Fields with a retired flag ("retired") only show on old
   // days that hold a value, so nothing saved is lost (shownFields).
   food: [
-    { key: "quality", flag: "quality", group: "Talíř", kind: "rating", label: "Jak zdravě jsi jedl(a)?", hint: "1 = samé rychlovky, 5 = jak z učebnice" },
-    { key: "calories", flag: "calories", group: "Talíř", kind: "number", label: "Kalorie", hint: "kcal za celý den", step: 1, max: 20000, slider: [4000, 10], nudge: 10, base: 2000, placeholder: "např. 2100" },
-    { key: "veg", flag: "retired", group: "Talíř", kind: "count", label: "Zelenina a ovoce (porce)" },
-    { key: "protein", flag: "retired", group: "Talíř", kind: "count", label: "Jídla s bílkovinou" },
-    { key: "processed", flag: "retired", group: "Talíř", kind: "count", label: "Průmyslově zpracované (porce)" },
+    { key: "quality", flag: "quality", kind: "rating", label: "Jak zdravě jsi jedl(a)?", labels: [Pizza, Sandwich, Soup, Salad, Carrot], slider: true, reverse: true },
+    { key: "calories", flag: "calories", kind: "number", label: "Kalorie", hint: "kcal za celý den", step: 1, max: 20000, slider: [4000, 10], nudge: 10, base: 2000, placeholder: "např. 2100" },
+    { key: "veg", flag: "retired", kind: "count", label: "Zelenina a ovoce (porce)" },
+    { key: "protein", flag: "retired", kind: "count", label: "Jídla s bílkovinou" },
+    { key: "processed", flag: "retired", kind: "count", label: "Průmyslově zpracované (porce)" },
     { key: "drinks", flag: "alcohol", group: "Hříšky a povzbuzováky", kind: "count", label: "Alkohol", hint: "drinky · pivo 0,5 l = víno 2 dl = panák" },
     { key: "coffee", flag: "caffeine", group: "Hříšky a povzbuzováky", kind: "count", label: "Kofein", hint: "šálky · káva, energiťák, silný čaj" },
     { key: "sweets", flag: "sugar", group: "Hříšky a povzbuzováky", kind: "count", label: "Sladkosti", hint: "porce · sušenka, zákusek, čokoláda" },
     { key: "sugary_drinks", flag: "sugary_drinks", group: "Hříšky a povzbuzováky", kind: "count", label: "Slazené pití", hint: "sklenice · limo, džus, sladký energiťák" },
     { key: "fast_food", flag: "fast_food", group: "Hříšky a povzbuzováky", kind: "count", label: "Fast food", hint: "porce · burger, pizza, kebab, smažák" },
     { key: "nicotine", flag: "nicotine", group: "Hříšky a povzbuzováky", kind: "count", label: "Nikotin", hint: "dávky · cigareta, vape, sáček" },
-    { key: "last_meal", flag: "meal_times", group: "Večer", kind: "time", label: "Poslední sousto", hint: "spočítáme, kolik hodin před spaním", range: ["15:00", 540], base: "19:00", now: true, nudge: 5 },
+    { key: "last_meal", flag: "meal_times", group: "Večer", kind: "time", label: "Poslední sousto", hint: "spočítáme, kolik hodin před spaním", range: ["15:00", 540], base: "19:00", nudge: 5 },
     { key: "first_meal", flag: "retired", group: "Večer", kind: "time", label: "První jídlo" },
     { key: "meal_gap_h", flag: "retired", group: "Večer", kind: "number", label: "Poslední jídlo před spaním (hodiny)", step: 0.5, max: 12, slider: [8, 0.5] },
     { key: "overate", flag: "retired", group: "Večer", kind: "bool", label: "Přejedl(a) jsem se" },
     { key: "slump", flag: "retired", group: "Večer", kind: "bool", label: "Útlum po jídle" },
   ],
   mind: [
-    { key: "clarity", flag: "clarity", kind: "rating", label: "Jasná hlava", hint: "1 = mlha, 5 = křišťálově jasno" },
-    { key: "energy", flag: "energy", kind: "rating", label: "Odpolední energie (14–16 h)", hint: "1 = padám, 5 = plný(á) energie" },
-    { key: "frustration", flag: "frustration", kind: "rating", label: "Podrážděnost", hint: "1 = klídek, 5 = všechno mě štve" },
+    { key: "clarity", flag: "clarity", kind: "rating", label: "Jasná hlava", labels: [CloudFog, Cloudy, Cloud, CloudSun, Sun], reverse: true },
+    { key: "energy", flag: "energy", kind: "rating", label: "Odpolední energie (14–16 h)", labels: BATTERY_ICONS, reverse: true },
+    { key: "frustration", flag: "frustration", kind: "rating", label: "Podrážděnost", labels: CALM },
   ],
+  // bare: label only for screen readers (the card prompt already says it).
   // needs: shown (and saved) only when that field is filled; grogginess means nothing without a nap.
   nap: [
     { key: "minutes", kind: "number", label: "Jak dlouho jsi spal(a)?", hint: "minuty · bez napu nech prázdné", step: 1, min: 1, max: 180, slider: [90, 1], nudge: 1, base: 20, placeholder: "např. 20" },
-    { key: "grogginess", flag: "grogginess", needs: "minutes", kind: "rating", label: "Rozespalost po probuzení", hint: "1 = svěží, 5 = jako po narkóze" },
+    { key: "grogginess", flag: "grogginess", needs: "minutes", kind: "rating", label: "Rozespalost po probuzení", labels: CALM },
   ],
-  water: [{ key: "liters", kind: "number", label: "Vypito", hint: "litry · voda, čaj, cokoli bez cukru", step: 0.05, max: 20, slider: [5, 0.1], nudge: 0.1, base: 1.5, placeholder: "např. 1,5" }],
+  water: [{ key: "liters", kind: "number", label: "Vypito", bare: true, step: 0.05, max: 20, slider: [5, 0.1], nudge: 0.1, base: 1.5, placeholder: "např. 1,5" }],
   steps: [{ key: "steps", kind: "number", label: "Kroky", hint: "najdeš v mobilu nebo hodinkách", step: 1, max: 200000, slider: [30000, 100], nudge: 100, base: 6000, placeholder: "např. 8000" }],
   // Hours come from the fasting type set in settings (see fastingHours), so the day is one tap.
   fasting: [{ key: "fasted", kind: "bool", label: "Držel(a) jsi dnes půst?", hint: (c) => (c.full_day ? "celodenní" : `${String(c.hours).replace(".", ",")} h`) }],
@@ -71,9 +82,9 @@ const FIELDS = {
     { key: "pages", flag: "pages", kind: "number", label: "Přečteno", hint: "stránky", step: 1, min: 1, max: 5000, slider: [200, 1], nudge: 1, base: 20, placeholder: "např. 20" },
   ],
   meditation: [{ key: "minutes", kind: "number", label: "Meditace", hint: "minuty", step: 1, min: 1, max: 1440, slider: [60, 1], base: 10, nudge: 1, placeholder: "např. 10" }],
-  stress: [{ key: "stress", kind: "rating", label: "Jak moc ve stresu?", labels: ["😌", "🙂", "😐", "😟", "😫"], hint: "od pohody po bod varu" }],
+  stress: [{ key: "stress", kind: "rating", label: "Jak moc ve stresu?", labels: CALM }],
 };
-const PROMPTS = { sleep: "Jak ses vyspal(a)?", food: "Jak se ti dneska jedlo?", water: "Kolik jsi dnes vypil(a)?" };
+const PROMPTS = { sleep: "Jak ses vyspal(a)?", water: "Kolik jsi dnes vypil(a)?" };
 // Pick-from-list templates: tap the options set in settings. [config list, data key, prompt, text when the list is empty]
 const PICKS = {
   emotions: { config: "emotions", data: "emotions", prompt: "Co se v tobě dnes ozvalo? Klidně víc věcí najednou." },
@@ -162,11 +173,6 @@ function toResults(templates, state, savedById) {
 }
 
 const comma = (n) => String(n).replace(".", ",");
-// Now, rounded down to 5 min ("Teď" for the last meal, typed in right after dinner).
-const nowRounded = () => {
-  const d = new Date();
-  return shiftClock("00:00", Math.floor((d.getHours() * 60 + d.getMinutes()) / 5) * 5);
-};
 const stepBtn =
   "flex min-h-11 min-w-14 shrink-0 items-center justify-center rounded-xl border border-line bg-neutral-900 text-sm font-medium tabular-nums text-neutral-300 transition hover:bg-neutral-800 motion-safe:active:scale-95";
 const centered = "block min-w-0 appearance-none text-center text-lg tabular-nums [&::-webkit-date-and-time-value]:text-center";
@@ -194,9 +200,42 @@ function TimeSlider({ name, value, range: [from, span], onChange }) {
   );
 }
 
+// 1–5 rating on a slider, big icon of the current value on top. Unfilled (null) is dimmed at 1.
+// reverse: 5 on the left (good end left, like every rating), stored values unchanged.
+function RatingSlider({ name, labels, value, onChange, reverse }) {
+  const pick = (e) => onChange(Number(e.target.value));
+  const Current = labels[(value ?? 1) - 1];
+  return (
+    <div>
+      <p className="flex h-10 items-center justify-center text-neutral-100" aria-hidden="true">
+        {value == null ? <span className="text-sm text-neutral-500">posuň</span> : <Current size={36} strokeWidth={1.75} />}
+      </p>
+      <input
+        type="range"
+        aria-label={`${name}, posuvník`}
+        aria-valuetext={value == null ? "nevyplněno" : `${value} z 5`}
+        min={1}
+        max={5}
+        step={1}
+        value={value ?? 1}
+        onChange={pick}
+        dir={reverse ? "rtl" : undefined}
+        onClick={pick} // tapping the thumb at 1 fires no change event, so 1 could never be saved otherwise
+        className={`mt-1 h-12 w-full cursor-pointer accent-accent-500 ${value == null ? "opacity-40" : ""}`}
+      />
+      <div className="flex justify-between px-1 text-neutral-500" aria-hidden="true">
+        {(reverse ? [5, 4, 3, 2, 1] : [1, 2, 3, 4, 5]).map((n) => {
+          const L = labels[n - 1];
+          return <L key={n} size={18} strokeWidth={1.75} className={value === n ? "text-neutral-100" : ""} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Times and durations: typical values one tap away (tap the chosen one again to clear), ± to fine-tune, and the
 // native input in the middle for exact typing. shift(dir) returns the value one nudge up (1) or down (-1).
-function Stepper({ name, value, onChange, presets, shift, nudgeText, format = String, now, children }) {
+function Stepper({ name, value, onChange, presets, shift, nudgeText, format = String, children }) {
   const on = (p) => value !== "" && value != null && String(value) === String(p);
   const chip = (key, text, active, onClick) => (
     <button
@@ -222,10 +261,9 @@ function Stepper({ name, value, onChange, presets, shift, nudgeText, format = St
           +{nudgeText}
         </button>
       </div>
-      {(presets || now) && (
+      {presets && (
         <div role="group" aria-label={`${name}: rychlá volba`} className="grid grid-cols-6 gap-1.5">
-          {presets?.map((p) => chip(p, format(p), on(p), () => onChange(on(p) ? "" : p)))}
-          {now && chip("now", "Teď", false, now)}
+          {presets.map((p) => chip(p, format(p), on(p), () => onChange(on(p) ? "" : p)))}
         </div>
       )}
     </div>
@@ -291,7 +329,7 @@ function NumberField({ id, label, name, value, onChange, min = 0, max, step, sli
       ) : (
         box
       )}
-      {auto && (value === "" || value == null) && <p className="mt-1 text-xs text-neutral-500">Necháš-li prázdné, dopočítám z časů: {fmtHM(auto)}</p>}
+      {auto && value === auto && <p className="mt-1 text-xs text-neutral-500">Dopočítáno z časů, klidně uprav.</p>}
       {slider && !presets && (
         <input
           type="range"
@@ -329,7 +367,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
   const today = new Date().toLocaleDateString("sv-SE");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false); // success toast shows briefly before the modal closes
+  const [saved, setSaved] = useState(null); // XP of the saved day; the success toast shows briefly before the modal closes
   const [copied, setCopied] = useState(false);
   // "Zkopírovat včerejšek": every template yesterday filled, except gratitude (meant to be fresh each day); mood and note stay.
   const copyable = active.filter((t) => t.id in prevById && t.type !== "gratitude");
@@ -385,7 +423,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
     try {
       const payload = { date, mood_score: mood, note, results: toResults(active, state, savedById) };
       await (record ? api(`/records/${record.id}`, "PUT", payload) : api("/records", "POST", payload));
-      setSaved(true); // saving stays true until the modal closes, so a second tap can't save twice
+      setSaved(dayXP(payload.results, Object.fromEntries(active.map((t) => [t.id, t])))); // saving stays true until the modal closes, so a second tap can't save twice
       navigator.vibrate?.(10);
       setTimeout(() => leave(onDone), 800);
     } catch (e) {
@@ -399,7 +437,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       return (
         <>
           <p className="mb-3 text-sm text-neutral-400">Jak se dnes cítíš?</p>
-          <Rating label="Nálada" labels={MOODS} captions={MOOD_LABELS} value={mood} onChange={setMood} reverse />
+          <Rating label="Nálada" labels={MOODS} tones={MOOD_TONES} value={mood} onChange={setMood} reverse />
         </>
       );
     const v = state[current.id];
@@ -466,7 +504,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-neutral-500">
                 Sociální baterie <span className="font-normal normal-case tracking-normal text-neutral-500">(dodalo ti to energii, nebo ji vzalo?)</span>
               </p>
-              <Rating label="Sociální baterie" captions={BATTERY} value={v.battery} onChange={(n) => set(current.id, { ...v, battery: n })} />
+              <Rating label="Sociální baterie" labels={BATTERY_ICONS} reverse captions={BATTERY} value={v.battery} onChange={(n) => set(current.id, { ...v, battery: n })} />
             </div>
           )}
         </>
@@ -526,8 +564,14 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
     }
     if (FIELDS[current.type]) {
       const fields = shownFields(current, saved).filter((f) => !f.needs || filled(v, f));
-      const setField = (key, value) => set(current.id, { ...v, [key]: value });
       const autoHours = current.type === "sleep" && sleptHours(v.bedtime, v.waketime);
+      const setField = (key, value) => {
+        const next = { ...v, [key]: value };
+        // Times changed -> hours follow, unless typed in by hand (empty or still the old computed value = not by hand).
+        if ((key === "bedtime" || key === "waketime") && current.config_json.hours && (v.sleep_hours === "" || v.sleep_hours === autoHours))
+          next.sleep_hours = sleptHours(next.bedtime, next.waketime) ?? "";
+        set(current.id, next);
+      };
       return (
         <div className="space-y-3">
           {PROMPTS[current.type] && <p className="text-sm text-neutral-400">{PROMPTS[current.type]}</p>}
@@ -575,7 +619,6 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                       onChange={(val) => setField(f.key, val)}
                       nudgeText={f.nudge}
                       shift={(dir) => shiftClock(v[f.key] || prevById[current.id]?.[f.key] || f.base, dir * f.nudge)}
-                      now={f.now && (() => setField(f.key, nowRounded()))}
                     >
                       <input id={`entry-${current.id}-${f.key}`} type="time" value={v[f.key]} onChange={(e) => setField(f.key, e.target.value)} className={`${input} ${centered} w-full`} />
                     </Stepper>
@@ -599,8 +642,10 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 {f.kind === "count" ? (
                   // Tap the chosen count again to clear it (unfilled, not 0).
                   <Rating label={f.label} options={COUNTS} labels={COUNT_LABELS} value={v[f.key]} onChange={(n) => setField(f.key, v[f.key] === n ? null : n)} />
+                ) : f.slider ? (
+                  <RatingSlider name={f.label} labels={f.labels} reverse={f.reverse} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
                 ) : (
-                  <Rating label={f.label} labels={f.labels} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
+                  <Rating label={f.label} labels={f.labels} reverse={f.reverse} value={v[f.key]} onChange={(n) => setField(f.key, n)} />
                 )}
               </div>
             ) : (
@@ -610,7 +655,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 name={f.label}
                 label={
                   <>
-                    {f.label} {f.hint && <span className="font-normal normal-case tracking-normal text-neutral-500">({f.hint})</span>} {goalHint(current, f.key)}
+                    <span className={f.bare ? "sr-only" : ""}>{f.label}</span> {f.hint && <span className="font-normal normal-case tracking-normal text-neutral-500">({f.hint})</span>} {goalHint(current, f.key)}
                   </>
                 }
                 value={v[f.key]}
@@ -727,7 +772,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
         <div className="sticky bottom-0 z-10 border-t border-line bg-neutral-950/95 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           {!mood && <p className="mb-1.5 text-center text-xs text-neutral-500">Nejdřív vyber náladu nahoře.</p>}
           <button type="button" className={`${primary} flex w-full items-center justify-center gap-2`} onClick={save} disabled={!mood || saving}>
-            {saved ? (
+            {saved != null ? (
               <>
                 <Check size={16} aria-hidden="true" /> Uloženo
               </>
@@ -741,9 +786,12 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       </div>
       {/* Live region exists from the start so screen readers announce the toast when it appears. */}
       <div role="status" className="pointer-events-none fixed inset-x-0 bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+4.5rem)] z-20 flex justify-center">
-        {saved && (
+        {saved != null && (
           <p className="flex items-center gap-2 rounded-xl border border-line bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-100 shadow-sm motion-safe:animate-toast-in">
             <Check size={16} className="text-accent2-text" aria-hidden="true" /> Záznam uložen
+            <span className="flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs font-semibold tabular-nums text-accent2-text">
+              <Sparkles size={12} aria-hidden="true" />+{saved} XP
+            </span>
           </p>
         )}
       </div>

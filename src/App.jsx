@@ -1,6 +1,7 @@
-import { ChevronLeft, ChevronRight, DatabaseBackup, Flame, LayoutTemplate, Palette, Settings, Target } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, DatabaseBackup, Flame, LayoutTemplate, Palette, Settings, Sparkles, Target } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api.js";
+import { calculateTotalXP } from "./goals.js";
 import Backup from "./Backup.jsx";
 import BottomNav from "./BottomNav.jsx";
 import Dashboard from "./Charts.jsx";
@@ -56,6 +57,7 @@ export default function App() {
   }, []);
 
   const closeEditor = useCallback(() => setEditing(null), []); // stable, so the modal's Escape listener isn't re-bound every render
+  const xp = useMemo(() => calculateTotalXP(records, templates), [records, templates]);
   const today = records.find((r) => r.date === todayIso());
   const sub = SETTINGS_MENU.find(([key]) => key === screen);
   const main = screen === "overview" || screen === "charts" || screen === "records"; // tabs of the bottom bar
@@ -93,6 +95,12 @@ export default function App() {
               >
                 <Flame size={16} aria-hidden="true" fill={streak ? "currentColor" : "none"} />
                 {streak}
+              </span>
+            )}
+            {screen === "overview" && !error && (
+              <span aria-label={`Zkušenosti: ${xp} XP`} className="flex items-center gap-1 rounded-full border border-line px-3 py-1 text-sm font-semibold tabular-nums text-neutral-300">
+                <Sparkles size={14} aria-hidden="true" />
+                {xp} <span className="text-xs font-medium text-neutral-500">XP</span>
               </span>
             )}
             <button

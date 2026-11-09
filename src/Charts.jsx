@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
-import { MOODS } from "./RecordEntryModal.jsx";
+import { MOOD_LABELS } from "./RecordEntryModal.jsx";
 import { DAYS, NAP_SHORT, WEEK, activities, clockStats, fmtClock, lastDays, templateCharts, weekDays, weekSummary, weeklyTicks } from "./chartData.js";
 import { goalText, goalTop } from "./goals.js";
 import { SECTIONS, sectionTitle } from "./sections.js";
@@ -192,8 +192,8 @@ export function TemplateChart({ rows, series, scale, height = 160, label, compac
   );
 }
 
-// axis: the 1–5 mood axis reads as faces, the tooltip keeps the number.
-const MOOD = [{ key: "mood", label: "Nálada", color: "mood", scale: "score", format: (v) => `${MOODS[v - 1]} ${v}`, axis: (v) => MOODS[v - 1] }];
+// Mood tooltip: word + number.
+const MOOD = [{ key: "mood", label: "Nálada", color: "mood", scale: "score", format: (v) => `${MOOD_LABELS[Math.round(v) - 1] ?? ""} ${v}` }]; // axis: plain 1–5, Recharts ticks are text
 
 // Big number + change vs the previous week. Arrow and sign are text, so the trend never relies on color.
 const statNum = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("cs-CZ") : num(v));

@@ -73,5 +73,29 @@ export function goalStatus(rows, rowKey, goal, dir, days = 7, period = "day") {
   return { met, of: vals.length, ok: vals.length > 0 && met * 2 >= vals.length };
 }
 
+// XP for one day: +1 per template with data, +1 per daily goal met (weekly goals aren't per day).
+// results: [{ template_id, data }], byId: { [template id]: template }.
+const hasData = (data) => Object.values(data ?? {}).some((v) => v != null && !(Array.isArray(v) && !v.length)); // sport always sends sports: []
+export function dayXP(results, byId) {
+  let xp = 0;
+  for (const { template_id, data } of results) {
+    const t = byId[template_id];
+    if (!t || !hasData(data)) continue;
+    xp += 1;
+    for (const m of GOALS[t.type] ?? []) {
+      const goal = t.config_json.goals?.[m.key];
+      if (goal && m.period !== "week" && typeof data[m.key] === "number" && meets(data[m.key], goal, m.dir)) xp += 1;
+    }
+  }
+  return xp;
+}
+
+export function calculateTotalXP(records, templates) {
+  const byId = Object.fromEntries(templates.map((t) => [t.id, t]));
+  let xp = 0;
+  for (const r of records) xp += dayXP(r.results.map((x) => ({ template_id: x.template_id, data: x.result_data_json })), byId);
+  return xp;
+}
+
 // Highest y the goal needs visible, so the axis never cuts the goal line off.
 export const goalTop = (goal) => goal.value + (goal.tolerance ?? 0);

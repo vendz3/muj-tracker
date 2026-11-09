@@ -3,7 +3,7 @@ import { Ring } from "./Charts.jsx";
 import { GOOD, WEEK, goalReport, lastDays, templateCharts, weekSummary } from "./chartData.js";
 import { goalText, meets } from "./goals.js";
 import { MIN_N, insights } from "./insights.js";
-import { MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
+import { MOOD_LABELS, MoodIcon } from "./RecordEntryModal.jsx";
 import { card, cardDesc, cardTitle, primary, secondary } from "./ui.js";
 
 // Overview = the last 7 days at a glance (rolling window, same for every goal). Details live in Grafy.
@@ -59,9 +59,7 @@ function TodayCard({ today, items, onEdit }) {
   return (
     <section className={`${card} p-4`}>
       <div className="flex items-center gap-4">
-        <span className="text-5xl leading-none" aria-hidden="true">
-          {MOODS[today.mood_score - 1]}
-        </span>
+        <MoodIcon score={today.mood_score} size={44} />
         <div className="min-w-0 flex-1">
           <h2 className={cardTitle}>
             Dnešek <span className="font-normal text-neutral-500">· {date}</span>
@@ -153,9 +151,7 @@ function MoodWeek({ dates, byDate, onEdit }) {
               <span className={`text-[11px] capitalize ${isToday ? "font-semibold text-neutral-200" : "text-neutral-500"}`} aria-hidden="true">
                 {isToday ? "dnes" : weekday(date)}
               </span>
-              <span className={r ? "text-xl" : "text-xl text-neutral-600"} aria-hidden="true">
-                {r ? MOODS[r.mood_score - 1] : "·"}
-              </span>
+              {r ? <MoodIcon score={r.mood_score} size={20} /> : <span className="text-xl text-neutral-600" aria-hidden="true">·</span>}
             </button>
           </li>
         );
@@ -211,7 +207,7 @@ function SummaryCard({ records, report, dates, onEdit }) {
         <span className="text-neutral-300">
           {mood ? (
             <>
-              Ø nálada <span aria-hidden="true">{MOODS[Math.round(mood.value) - 1]}</span> <b className="font-semibold text-neutral-100">{num(mood.value)}</b>
+              Ø nálada <span className="inline-block align-[-3px]"><MoodIcon score={Math.round(mood.value)} size={16} /></span> <b className="font-semibold text-neutral-100">{num(mood.value)}</b>
               {mood.delta != null && <span className="text-xs text-neutral-500"> {change(mood.delta, num, 0.05)}</span>}
             </>
           ) : (

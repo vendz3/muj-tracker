@@ -1,4 +1,4 @@
-import { BATTERY, MOOD_LABELS, MOODS } from "./RecordEntryModal.jsx";
+import { BATTERY, MOOD_LABELS, MoodIcon } from "./RecordEntryModal.jsx";
 import { fmtHM } from "./chartData.js";
 import { card } from "./ui.js";
 
@@ -66,8 +66,8 @@ export default function RecordsList({ records, templates, onEdit }) {
     <ul className="space-y-2">
       {records.map((r) => (
         <li key={r.id} className={`${card} flex items-center gap-3`}>
-          <span className="text-2xl" aria-label={`Nálada ${r.mood_score} z 5, ${MOOD_LABELS[r.mood_score - 1]}`}>
-            {MOODS[r.mood_score - 1]}
+          <span role="img" className="shrink-0" aria-label={`Nálada ${r.mood_score} z 5, ${MOOD_LABELS[r.mood_score - 1]}`}>
+            <MoodIcon score={r.mood_score} size={26} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">{fmtDate(r.date)}</p>
