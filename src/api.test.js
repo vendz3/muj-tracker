@@ -69,3 +69,12 @@ await importData({ tracker_templates: old13, tracker_records: [] });
 const now = await api("/templates");
 assert(now.length === 16 && new Set(now.map((t) => t.id)).size === 16 && now.slice(13).every((t) => !t.is_active), "new types appended");
 console.log("rpe migration + template append OK");
+
+// Food v2 config upgrade: a food template without "veg" gets the new flags on and quality off, once.
+const oldFood = (await exportData()).tracker_templates.map((t) => (t.type === "food" ? { ...t, config_json: { calories: true, quality: true, alcohol: true } } : t));
+await importData({ tracker_templates: oldFood, tracker_records: [] });
+const fc = (await api("/templates")).find((t) => t.type === "food").config_json;
+assert(fc.veg && fc.protein && fc.processed && fc.meal_times && fc.overate && fc.slump && !fc.quality && fc.alcohol && fc.calories, "food v2 flags");
+await api(`/templates/${(await api("/templates")).find((t) => t.type === "food").id}`, "PUT", { is_active: true, config_json: { ...fc, veg: false } });
+assert((await api("/templates")).find((t) => t.type === "food").config_json.veg === false, "upgrade runs once, user choice kept");
+console.log("food v2 upgrade OK");

@@ -19,11 +19,16 @@ const FLAGS = {
   ],
   food: [
     ["calories", "Sledovat kalorie"],
+    ["veg", "Sledovat zeleninu a ovoce (porce)"],
+    ["protein", "Sledovat jídla s bílkovinou"],
+    ["processed", "Sledovat průmyslově zpracované jídlo"],
     ["quality", "Sledovat kvalitu (1–5)"],
     ["alcohol", "Sledovat alkohol (drinky)"],
     ["caffeine", "Sledovat kofein (šálky)"],
     ["sugar", "Sledovat sladkosti (porce)"],
-    ["last_meal", "Sledovat poslední jídlo před spaním"],
+    ["meal_times", "Sledovat čas prvního a posledního jídla"],
+    ["overate", "Sledovat přejedení"],
+    ["slump", "Sledovat útlum po jídle"],
   ],
   mind: [
     ["clarity", "Sledovat mentální jasnost (1–5)"],

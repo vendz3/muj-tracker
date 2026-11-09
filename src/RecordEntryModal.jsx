@@ -30,13 +30,22 @@ const FIELDS = {
     { key: "waketime", flag: "times", kind: "time", label: "Vstal(a) jsem" },
     { key: "sleep_hours", flag: "hours", kind: "number", label: "Čas spánku (hodiny)", step: 0.5, max: 24, slider: [12, 0.5], placeholder: "např. 7,5" },
   ],
+  // group: small heading inside the card when it changes (food has four parts).
   food: [
-    { key: "calories", flag: "calories", kind: "number", label: "Kalorie (kcal)", step: 1, max: 20000, slider: [5000, 50], placeholder: "např. 2100" },
-    { key: "quality", flag: "quality", kind: "rating", label: "Kvalita jídla" },
-    { key: "drinks", flag: "alcohol", kind: "count", label: "Alkohol (drinky)", hint: "1 drink = pivo 0,5 l · víno 2 dl · panák 4 cl" },
-    { key: "coffee", flag: "caffeine", kind: "count", label: "Kofein (šálky)", hint: "káva, energy drink, silný čaj" },
-    { key: "sweets", flag: "sugar", kind: "count", label: "Sladkosti (porce)", hint: "sušenka, zákusek, slazený nápoj" },
-    { key: "meal_gap_h", flag: "last_meal", kind: "number", label: "Poslední jídlo před spaním (hodiny)", hint: "0 = těsně před spaním", step: 0.5, max: 12, slider: [8, 0.5], placeholder: "např. 3" },
+    { key: "calories", flag: "calories", group: "Co jsi jedl(a)", kind: "number", label: "Kalorie (kcal)", step: 1, max: 20000, slider: [5000, 50], placeholder: "např. 2100" },
+    { key: "veg", flag: "veg", group: "Co jsi jedl(a)", kind: "count", label: "Zelenina a ovoce (porce)", hint: "1 porce = hrst, jablko, miska salátu" },
+    { key: "protein", flag: "protein", group: "Co jsi jedl(a)", kind: "count", label: "Jídla s bílkovinou", hint: "maso, ryby, vejce, luštěniny, tvaroh, tofu" },
+    { key: "processed", flag: "processed", group: "Co jsi jedl(a)", kind: "count", label: "Průmyslově zpracované (porce)", hint: "fast food, chipsy, polotovary, slazené cereálie" },
+    { key: "quality", flag: "quality", group: "Co jsi jedl(a)", kind: "rating", label: "Kvalita jídla" },
+    { key: "drinks", flag: "alcohol", group: "Pochutiny", kind: "count", label: "Alkohol (drinky)", hint: "1 drink = pivo 0,5 l · víno 2 dl · panák 4 cl" },
+    { key: "coffee", flag: "caffeine", group: "Pochutiny", kind: "count", label: "Kofein (šálky)", hint: "káva, energy drink, silný čaj" },
+    { key: "sweets", flag: "sugar", group: "Pochutiny", kind: "count", label: "Sladkosti (porce)", hint: "sušenka, zákusek, slazený nápoj" },
+    { key: "first_meal", flag: "meal_times", group: "Načasování", kind: "time", label: "První jídlo" },
+    { key: "last_meal", flag: "meal_times", group: "Načasování", kind: "time", label: "Poslední jídlo" },
+    // Old input, replaced by meal times (hours before sleep are now computed); shows only on days that hold a value.
+    { key: "meal_gap_h", flag: "last_meal", group: "Načasování", kind: "number", label: "Poslední jídlo před spaním (hodiny)", step: 0.5, max: 12, slider: [8, 0.5] },
+    { key: "overate", flag: "overate", group: "Po jídle", kind: "bool", label: "Přejedl(a) jsem se" },
+    { key: "slump", flag: "slump", group: "Po jídle", kind: "bool", label: "Útlum po jídle", hint: () => "ospalost, těžkost" },
   ],
   mind: [
     { key: "clarity", flag: "clarity", kind: "rating", label: "Mentální jasnost", hint: "1 = mlha, 5 = křišťálově jasno" },
@@ -395,7 +404,12 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
       return (
         <div className="space-y-4">
           {PROMPTS[current.type] && <p className="text-neutral-400">{PROMPTS[current.type]}</p>}
-          {fields.map((f) =>
+          {fields.map((f, i) => [
+            f.group && f.group !== fields[i - 1]?.group && (
+              <h4 key={`g-${f.group}`} className={`text-xs font-semibold tracking-wide text-neutral-500 uppercase ${i ? "pt-3" : ""}`}>
+                {f.group}
+              </h4>
+            ),
             f.kind === "bool" ? (
               <div key={f.key}>
                 <p className="mb-1 text-neutral-400">
@@ -466,7 +480,7 @@ export default function RecordEntryModal({ templates, record, date, yesterday, o
                 placeholder={f.key === "sleep_hours" && autoHours ? `vypočteno: ${String(autoHours).replace(".", ",")} h` : f.placeholder}
               />
             ),
-          )}
+          ])}
           {fields.length === 0 && <p className="text-neutral-400">V nastavení u této šablony nesleduješ nic. Zapni si aspoň jednu metriku.</p>}
         </div>
       );

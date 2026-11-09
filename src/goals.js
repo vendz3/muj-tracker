@@ -14,6 +14,9 @@ export const GOALS = {
   ],
   food: [
     g("calories", "range", "Kalorie", "kcal", 0, 20000, 50, { flag: "calories", defaultTolerance: 200 }),
+    g("veg", "min", "Zelenina a ovoce (porce)", "", 0, 50, 1, { flag: "veg", per: "denně" }),
+    g("protein", "min", "Jídla s bílkovinou", "", 0, 50, 1, { flag: "protein", per: "denně" }),
+    g("processed", "max", "Zpracované jídlo (porce)", "", 0, 50, 1, { flag: "processed", per: "denně" }),
     // Counts per day; "Alkohol ≤ 0" = alcohol-free days. Unit lives in the label (no Czech plurals needed).
     g("drinks", "max", "Alkohol (drinky)", "", 0, 50, 1, { flag: "alcohol", per: "denně" }),
     g("coffee", "max", "Kofein (šálky)", "", 0, 50, 1, { flag: "caffeine", per: "denně" }),

@@ -15,7 +15,9 @@ const SPORT_COLORS = [A1, A2, A3];
 const score = (key, label, color, get = (d) => d[key]) => ({ key, label, color, scale: "score", get });
 const value = (key, label, unit, color, get = (d) => d[key]) => ({ key, label, unit, color, scale: "value", get });
 // scale "count" = whole number per day where 0 is real data (food 0–5+, 5 = "5 or more"): small bar rows, sum per week.
-const count = (key, label, color) => ({ key, label, color, unit: "", scale: "count", integer: true, better: "low", format: (v) => (v >= 5 ? "5+" : String(v)), get: (d) => d[key] });
+// scale "treat" = the same counts for alcohol / caffeine / sweets, as their own block ("Pochutiny") under the food.
+const count = (key, label, color, better = "low", scale = "count") => ({ key, label, color, unit: "", scale, integer: true, better, format: (v) => (v >= 5 ? "5+" : String(v)), get: (d) => d[key] });
+const treat = (key, label, color) => count(key, label, color, "low", "treat");
 
 // scale "clock" = time of day as decimal hours (line, own axis), stored as "HH:MM". wrap: times before noon are
 // "after midnight" (bedtime 00:30 -> 24.5), so 23:30 and 00:30 sit next to each other.
@@ -36,13 +38,20 @@ export const METRICS = {
   sport: [], // drawn by sportSeries(): stacked minutes or activities per sport
   // better: which end of the 1–5 scale is the good one (shown as "méně = lépe" where it isn't the usual high).
   food: [
-    { ...score("quality", "Kvalita", A1), better: "high" },
-    count("drinks", "Alkohol", A2),
-    count("coffee", "Kofein", A3),
-    count("sweets", "Sladkosti", A4),
-    value("calories", "Příjem", "kcal", A1),
-    // Own scale: hours before sleep must not share the kcal axis.
+    count("veg", "Zelenina", A2, "high"),
+    count("protein", "Bílkovina", A1, "high"),
+    count("processed", "Zpracované", A3),
+    treat("drinks", "Alkohol", A4),
+    treat("coffee", "Kofein", A1),
+    treat("sweets", "Sladkosti", A3),
+    clock("first_meal", "První jídlo", A1),
+    clock("last_meal", "Poslední jídlo", A2),
+    // Own scale "hours": eating window and hours before sleep (meal_gap_h, computed from the next day's bedtime
+    // in templateCharts when only meal times were entered) must not share the kcal axis.
+    { ...value("eating_window", "Okno jídla", "h", A1, (d) => (d.first_meal && d.last_meal ? toClock(d.last_meal) - toClock(d.first_meal) : null)), scale: "hours" },
     { ...value("meal_gap_h", "Jídlo před spaním", "h", A2), scale: "hours" },
+    value("calories", "Příjem", "kcal", A1),
+    { ...score("quality", "Kvalita", A1), better: "high" },
   ],
   mind: [
     { ...score("clarity", "Jasnost", A1), better: "high" },
@@ -143,6 +152,18 @@ export function napScatter(data) {
   };
 }
 
+// Hours between the last meal and falling asleep. The bedtime of that night lives in the NEXT day's sleep record
+// (a day's sleep is the night you woke up from). Kept: a gap typed in by hand (old input). Outside 0–14 h -> null.
+export function fillMealGap(rows, data, days, templates) {
+  const sleepIds = new Set(templates.filter((t) => t.type === "sleep").map((t) => t.id));
+  rows.forEach((row, i) => {
+    if (row.meal_gap_h != null || !data[i]?.last_meal) return;
+    const bed = days[i + 1]?.record?.results.find((r) => sleepIds.has(r.template_id))?.result_data_json?.bedtime;
+    const gap = bed ? toClock(bed, true) - toClock(data[i].last_meal) : null;
+    row.meal_gap_h = gap != null && gap >= 0 && gap <= 14 ? Math.round(gap * 4) / 4 : null;
+  });
+}
+
 // X-axis ticks every 7 days ending with the last row, so every chart in a card shows the same dates.
 export const weeklyTicks = (rows) => rows.filter((_, i) => (rows.length - 1 - i) % WEEK === 0).map((r) => r.date);
 
@@ -234,6 +255,12 @@ const PRESENCE = {
   emotions: { key: "emotions", get: (d) => d.emotions, byFrequency: true },
   social: { key: "kinds", get: (d) => d.kinds, byFrequency: false },
   fasting: { key: "fasting", get: (d) => (d.fasted == null ? null : d.fasted ? ["půst"] : []), byFrequency: false, zeroFill: true },
+  // Food: how the day's eating felt afterwards (yes / no answers), drawn under the food charts.
+  food: {
+    key: "after_meal", order: ["přejedení", "útlum"],
+    get: (d) => (d.overate == null && d.slump == null ? null : [d.overate && "přejedení", d.slump && "útlum"].filter(Boolean)),
+    byFrequency: false,
+  },
 };
 export const emotionGrid = (days, t) => presenceGrid(days, t);
 export function presenceGrid(days, t) {
@@ -243,7 +270,7 @@ export function presenceGrid(days, t) {
     return (d && get(d)) ?? (zeroFill && record ? [] : null);
   });
   if (!data.some(Boolean)) return null;
-  const order = t.config_json?.[key] ?? [];
+  const order = PRESENCE[t.type].order ?? t.config_json?.[key] ?? [];
   const total = {};
   for (const list of data) for (const e of list ?? []) total[e] = (total[e] ?? 0) + 1;
   const rank = (e) => (order.includes(e) ? order.indexOf(e) : order.length);
@@ -294,9 +321,10 @@ export function templateCharts(days, templates) {
       // Activities that day (sport entries), for the weekly activity goal; "bez sportu" = 0.
       ...(t.type === "sport" && { _count: data[i] ? (data[i].sports?.length ?? 0) : null }),
     }));
+    if (t.type === "food") fillMealGap(rows, data, days, templates);
     // Hide a metric with nothing to show (never tracked, or only zeros; for counts a 0 is data, e.g. no alcohol).
     // Copies, so per-card fields (goalInfo, avg) never leak into the shared METRICS objects.
-    const series = metrics.filter((m) => rows.some((r) => (m.scale === "count" ? r[m.key] != null : r[m.key] > 0))).map((m) => ({ ...m }));
+    const series = metrics.filter((m) => rows.some((r) => (m.integer && !m.stack ? r[m.key] != null : r[m.key] > 0))).map((m) => ({ ...m }));
     for (const s of series) if (s.avgLine) s.avg = weekSummary(rows, s.key, "avg", rows.length)?.value;
     // Groups in the order their metrics are listed (nap: minutes first, grogginess under them).
     const groups = [...new Set(metrics.map((m) => m.scale))]

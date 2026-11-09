@@ -11,7 +11,7 @@ export const SOCIAL_KINDS = ["nikdo", "krátce", "online", "1:1", "malá skupina
 const SEED = [
   ["sleep", "Spánek", { quality: true, hours: true, times: false, goals: { sleep_hours: { value: 7 } } }, true],
   ["sport", "Sport", { sports: [], duration: false, goals: { week_activities: { value: 3 } } }, true],
-  ["food", "Jídlo", { calories: true, quality: true, alcohol: false, caffeine: false, sugar: false, last_meal: false }, true],
+  ["food", "Jídlo", { calories: true, quality: false, veg: true, protein: true, processed: true, alcohol: false, caffeine: false, sugar: false, meal_times: false, overate: false, slump: false }, true],
   ["water", "Pitný režim", { goals: { liters: { value: 2 } } }, true],
   ["emotions", "Emoce", { emotions: ["radost", "smutek", "strach", "hněv", "překvapení", "znechucení"] }, true],
   ["steps", "Kroky", {}, false],
@@ -63,6 +63,13 @@ export function migrate(records, templates) {
 function templates() {
   let t = load(T);
   if (!t?.length) store(T, (t = SEED));
+  // Food v2: portions replace the 1–5 quality, meal times replace "hours before sleep", plus overeating / slump.
+  // Once per list (keyed on the missing "veg" flag); old quality and meal_gap_h data stay and still show.
+  const food = t.find((x) => x.type === "food" && !("veg" in x.config_json));
+  if (food) {
+    Object.assign(food.config_json, { veg: true, protein: true, processed: true, meal_times: true, overate: true, slump: true, quality: false });
+    store(T, t);
+  }
   // New template types reach existing users switched off, so they show up in Nastavení -> Šablony.
   const missing = SEED.filter((s) => !t.some((x) => x.type === s.type));
   if (missing.length) {

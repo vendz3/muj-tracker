@@ -369,6 +369,8 @@ function PresenceCount({ n, of, text }) {
 const PRESENCE_UI = {
   social: { aside: (g) => <PresenceCount n={g.contactWeek} of={g.filledWeek} text="dní s kontaktem" />, words: ["ano", "vyplněno bez něj"] },
   fasting: { aside: (g) => <PresenceCount n={g.rows[0]?.week ?? 0} of={g.filledWeek} text="dní s půstem" />, words: ["půst", "bez půstu"] },
+  // Food keeps its kcal headline; the after-meal grid sits under the food charts, titled.
+  food: { words: ["ano", "vyplněno bez něj"], keepSummary: true, after: "Po jídle" },
 };
 
 // Training load (sRPE) and the acute:chronic ratio; the zone is always a word, never color alone.
@@ -404,7 +406,7 @@ function EmotionTop({ grid }) {
 // scale "count" (food 0–5+): same rows as bars, with the 7-day total instead of the average.
 // scale "clock" (bedtime / wake): average time and its spread, the rhythm's consistency ("Ø 23:40 · ±25 min").
 function ScoreRows({ rows, series, title, scale = "score" }) {
-  const counts = scale === "count";
+  const counts = scale === "count" || scale === "treat";
   const clockText = (key) => {
     const st = clockStats(rows, key);
     return st && `Ø ${fmtClock(st.mean)} · ±${Math.round(st.sd * 60)} min`;
@@ -425,6 +427,8 @@ function ScoreRows({ rows, series, title, scale = "score" }) {
               <p className="text-xs text-neutral-500">
                 {scale === "clock" ? (clockText(s.key) ?? "–") : stat == null ? "–" : counts ? `${num(stat)} za ${WEEK} dní` : `Ø ${num(stat)}`}
                 {s.better === "low" && <span className="block text-[11px] text-neutral-600">méně = lépe</span>}
+                {/* Counts read "less is better" by default here, so say it when more is the good end (vegetables). */}
+                {counts && s.better === "high" && <span className="block text-[11px] text-neutral-600">více = lépe</span>}
               </p>
               {s.goalInfo && (
                 <p className="text-xs leading-tight">
@@ -513,9 +517,9 @@ function CardBody({ chart: { template, groups, summary, weekGoals, scatter }, we
     <div className="space-y-3">
       {groups.map((g) => (
         <div key={g.scale}>
-          {(g.scale === "score" && g.series.length > 1) || g.scale === "count" || g.scale === "clock" ? (
+          {(g.scale === "score" && g.series.length > 1) || g.scale === "count" || g.scale === "treat" || g.scale === "clock" ? (
             <>
-              <p className="mb-1 text-xs text-neutral-500">{{ count: "Počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
+              <p className="mb-1 text-xs text-neutral-500">{{ count: "Co jsi jedl(a) · porce za den", treat: "Pochutiny · počet za den", clock: "Čas (rozptyl za 7 dní = pravidelnost)" }[g.scale] ?? "Hodnocení 1–5"}</p>
               <ScoreRows rows={g.rows} series={g.series} title={template.name} scale={g.scale} />
             </>
           ) : (
@@ -693,7 +697,33 @@ const subtitle = (g) =>
       ? g.series[0].mode === "count"
         ? "Aktivity podle sportu"
         : "Minuty podle sportu"
-      : `${g.series[0].label} (${g.series[0].unit})`;
+      : `${g.series.map((s) => s.label).join(" · ")} (${g.series[0].unit})`; // several bars of one unit: name them all
+
+// A non-sport card: header, optional presence grid (emotions, social, fasting, food "Po jídle") and the charts.
+function PresenceCard({ chart }) {
+  const ui = PRESENCE_UI[chart.template.type];
+  const grid = chart.presence && <EmotionGrid grid={chart.presence} title={chart.template.name} words={ui?.words} />;
+  return (
+    <>
+      <CardHeader
+        title={chart.template.name}
+        summary={chart.summary}
+        aside={chart.presence && !ui?.keepSummary ? (ui?.aside?.(chart.presence) ?? <EmotionTop grid={chart.presence} />) : undefined} // undefined -> the summary
+      />
+      {!ui?.after && grid}
+      {/* Space between the grid's legend and the charts under it (social battery). */}
+      <div className={grid && !ui?.after && chart.groups.length ? "mt-5" : ""}>
+        <CardBody chart={chart} />
+      </div>
+      {ui?.after && grid && (
+        <div className="mt-5">
+          <p className="mb-1 text-xs text-neutral-500">{ui.after}</p>
+          {grid}
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function Dashboard({ records, templates }) {
   const days = lastDays(records);
@@ -717,18 +747,7 @@ export default function Dashboard({ records, templates }) {
           {chart.template.type === "sport" ? (
             <SportCard month={chart} records={records} />
           ) : (
-            <>
-              <CardHeader
-                title={chart.template.name}
-                summary={chart.summary}
-                aside={chart.presence && (PRESENCE_UI[chart.template.type]?.aside(chart.presence) ?? <EmotionTop grid={chart.presence} />)}
-              />
-              {chart.presence && <EmotionGrid grid={chart.presence} title={chart.template.name} words={PRESENCE_UI[chart.template.type]?.words} />}
-              {/* Space between the grid's legend and the charts under it (social battery). */}
-              <div className={chart.presence && chart.groups.length ? "mt-5" : ""}>
-                <CardBody chart={chart} />
-              </div>
-            </>
+            <PresenceCard chart={chart} />
           )}
         </section>
         </Fragment>

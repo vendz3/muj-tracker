@@ -23,11 +23,17 @@ function summary(record, templatesById) {
       if (type === "food")
         return join([
           d.calories != null && `${num(d.calories)} kcal`,
+          count(d.veg, "zelenina", "bez zeleniny"),
+          count(d.protein, "bílkovina", "bez bílkoviny"),
+          count(d.processed, "zpracované", "bez zpracovaného"),
           d.quality != null && `kvalita jídla ${d.quality}`,
           count(d.drinks, "alkohol", "bez alkoholu"),
           count(d.coffee, "káva", "bez kávy"),
           count(d.sweets, "sladké", "bez sladkého"),
           d.meal_gap_h != null && `jídlo ${num(d.meal_gap_h)} h před spaním`,
+          (d.first_meal || d.last_meal) && `jídlo ${d.first_meal ?? "?"}–${d.last_meal ?? "?"}`,
+          d.overate && "přejedení",
+          d.slump && "útlum po jídle",
         ]);
       if (type === "water") return `${num(d.liters)} l vody`;
       if (type === "emotions") return d.emotions.join(", ");
